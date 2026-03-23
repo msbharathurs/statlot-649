@@ -1,0 +1,63 @@
+{
+  "type": "object",
+  "properties": {
+    "run_date": {
+      "type": "string",
+      "description": "ISO datetime when the backtest was run"
+    },
+    "test_count": {
+      "type": "integer",
+      "description": "Number of historical draws tested"
+    },
+    "pred_count": {
+      "type": "integer",
+      "description": "Number of predictions generated per test draw"
+    },
+    "avg_match": {
+      "type": "number",
+      "description": "Average number of matches across all test draws"
+    },
+    "best_match": {
+      "type": "integer",
+      "description": "Best single draw match count achieved"
+    },
+    "three_plus_rate": {
+      "type": "number",
+      "description": "Percentage of test draws with 3 or more matches (0-100)"
+    },
+    "random_avg_match": {
+      "type": "number",
+      "description": "Baseline random pick average match count"
+    },
+    "lift_pct": {
+      "type": "number",
+      "description": "Percentage improvement over random baseline"
+    },
+    "tuned_weights": {
+      "type": "object",
+      "description": "The resulting optimized weights object from this backtest"
+    },
+    "draw_range_start": {
+      "type": "integer",
+      "description": "First draw number included in this backtest"
+    },
+    "draw_range_end": {
+      "type": "integer",
+      "description": "Last draw number included in this backtest"
+    },
+    "engine_config_id": {
+      "type": "string",
+      "description": "Reference to EngineConfig used as input for this backtest"
+    },
+    "weights_applied": {
+      "type": "boolean",
+      "description": "Whether the tuned weights were saved and applied to engine"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional notes about this backtest run"
+    }
+  },
+  "required": [],
+  "name": "BacktestResult"
+}

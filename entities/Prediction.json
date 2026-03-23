@@ -1,0 +1,78 @@
+{
+  "type": "object",
+  "properties": {
+    "draw_label": {
+      "type": "string",
+      "description": "Label for next expected draw e.g. Draw 4155"
+    },
+    "generated_date": {
+      "type": "string",
+      "description": "ISO datetime when prediction was generated"
+    },
+    "combos": {
+      "type": "array",
+      "description": "Array of top predicted 6-number combinations",
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "integer"
+        }
+      }
+    },
+    "additional_picks": {
+      "type": "array",
+      "description": "Top predicted additional/bonus numbers",
+      "items": {
+        "type": "integer"
+      }
+    },
+    "tuned_weights_active": {
+      "type": "boolean",
+      "description": "Whether backtest-tuned weights were used"
+    },
+    "total_draws_used": {
+      "type": "integer",
+      "description": "Number of historical draws used as input"
+    },
+    "engine_config_id": {
+      "type": "string",
+      "description": "Reference to EngineConfig record used"
+    },
+    "engine_version": {
+      "type": "string",
+      "description": "Version tag of the engine config"
+    },
+    "verified": {
+      "type": "boolean",
+      "description": "Whether actual draw result has been entered"
+    },
+    "actual_draw": {
+      "type": "array",
+      "description": "The 6 actual draw numbers after the draw",
+      "items": {
+        "type": "integer"
+      }
+    },
+    "actual_additional": {
+      "type": "integer",
+      "description": "Actual additional/bonus number from the draw"
+    },
+    "best_match": {
+      "type": "integer",
+      "description": "Best match count across all predicted combos"
+    },
+    "match_details": {
+      "type": "array",
+      "description": "Per-combo match details",
+      "items": {
+        "type": "object"
+      }
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional notes"
+    }
+  },
+  "required": [],
+  "name": "Prediction"
+}

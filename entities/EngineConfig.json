@@ -1,0 +1,72 @@
+{
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Config version tag e.g. v1, tuned-2026-03-23"
+    },
+    "is_active": {
+      "type": "boolean",
+      "description": "Whether this config is currently in use by the engine"
+    },
+    "freq_weight": {
+      "type": "number",
+      "description": "Weight for number frequency scoring"
+    },
+    "pair_weight": {
+      "type": "number",
+      "description": "Weight for pair co-occurrence scoring"
+    },
+    "triplet_weight": {
+      "type": "number",
+      "description": "Weight for triplet co-occurrence scoring"
+    },
+    "aging_weight": {
+      "type": "number",
+      "description": "Weight for number aging/overdue scoring"
+    },
+    "markov_weight": {
+      "type": "number",
+      "description": "Weight for Markov chain transition scoring"
+    },
+    "hot_cold_weight": {
+      "type": "number",
+      "description": "Weight for hot/cold classification scoring"
+    },
+    "decade_weight": {
+      "type": "number",
+      "description": "Weight for decade distribution scoring"
+    },
+    "odd_even_weight": {
+      "type": "number",
+      "description": "Weight for odd/even balance scoring"
+    },
+    "gap_weight": {
+      "type": "number",
+      "description": "Weight for gap pattern similarity scoring"
+    },
+    "additional_weight": {
+      "type": "number",
+      "description": "Weight for additional number correlation scoring"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "default",
+        "manual",
+        "backtest_tuned"
+      ],
+      "description": "How this config was created"
+    },
+    "backtest_result_id": {
+      "type": "string",
+      "description": "Reference to BacktestResult that produced these weights"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional notes about this config"
+    }
+  },
+  "required": [],
+  "name": "EngineConfig"
+}

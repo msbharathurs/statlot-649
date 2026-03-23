@@ -1,0 +1,104 @@
+{
+  "type": "object",
+  "properties": {
+    "draw_number": {
+      "type": "integer",
+      "description": "Official draw number e.g. 4154"
+    },
+    "draw_date": {
+      "type": "string",
+      "description": "ISO date string e.g. 2024-03-02"
+    },
+    "n1": {
+      "type": "integer",
+      "description": "1st number (sorted ascending)"
+    },
+    "n2": {
+      "type": "integer",
+      "description": "2nd number"
+    },
+    "n3": {
+      "type": "integer",
+      "description": "3rd number"
+    },
+    "n4": {
+      "type": "integer",
+      "description": "4th number"
+    },
+    "n5": {
+      "type": "integer",
+      "description": "5th number"
+    },
+    "n6": {
+      "type": "integer",
+      "description": "6th number"
+    },
+    "additional": {
+      "type": "integer",
+      "description": "Bonus/additional number"
+    },
+    "sum": {
+      "type": "integer",
+      "description": "Sum of the 6 main numbers"
+    },
+    "odd_count": {
+      "type": "integer",
+      "description": "Count of odd numbers (0-6)"
+    },
+    "even_count": {
+      "type": "integer",
+      "description": "Count of even numbers (0-6)"
+    },
+    "low_count": {
+      "type": "integer",
+      "description": "Count of low numbers 1-24"
+    },
+    "high_count": {
+      "type": "integer",
+      "description": "Count of high numbers 25-49"
+    },
+    "decade_1": {
+      "type": "integer",
+      "description": "Count of numbers in 1-10"
+    },
+    "decade_2": {
+      "type": "integer",
+      "description": "Count of numbers in 11-20"
+    },
+    "decade_3": {
+      "type": "integer",
+      "description": "Count of numbers in 21-30"
+    },
+    "decade_4": {
+      "type": "integer",
+      "description": "Count of numbers in 31-40"
+    },
+    "decade_5": {
+      "type": "integer",
+      "description": "Count of numbers in 41-49"
+    },
+    "consecutive_count": {
+      "type": "integer",
+      "description": "Number of consecutive pairs in draw"
+    },
+    "repeat_from_prev": {
+      "type": "integer",
+      "description": "How many numbers repeated from previous draw"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "manual",
+        "import",
+        "verified"
+      ],
+      "description": "How this record was entered"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional notes about this draw"
+    }
+  },
+  "required": [],
+  "name": "Draw"
+}
