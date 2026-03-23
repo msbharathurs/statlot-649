@@ -1,0 +1,15 @@
+{
+  "app_id": "69c15c14a38ebf4239b34085",
+  "slug": "app-enhancer-app-39b34085",
+  "pages": {
+    "DrawImport": {
+      "title": "DrawImport"
+    },
+    "PatternAnalysis": {
+      "title": "PatternAnalysis"
+    },
+    "Home": {
+      "title": "Home"
+    }
+  }
+}
