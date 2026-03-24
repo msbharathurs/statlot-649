@@ -9,3 +9,4 @@ models/*.pkl
 backtest_summary.json
 data/*.csv
 data/*.json
+data/*.json
