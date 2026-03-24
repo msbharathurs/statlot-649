@@ -26,21 +26,48 @@ class GMMScorer:
     def fit(self, draws, train_end_idx):
         if not GMM_AVAILABLE: print("  [M8] sklearn not available"); return self
         print(f"  [M8] Fitting GMM on {train_end_idx} draws...")
-        X=np.array([_combo_to_gmm_features(sorted(d["nums"])) for d in draws[:train_end_idx]],dtype=np.float32)
+        # Use float64 for numerical stability
+        X=np.array([_combo_to_gmm_features(sorted(d["nums"])) for d in draws[:train_end_idx]],dtype=np.float64)
         self.scaler=StandardScaler(); X_scaled=self.scaler.fit_transform(X)
-        self.gmm=GaussianMixture(n_components=self.n_components,covariance_type="full",random_state=self.seed,n_init=3)
-        self.gmm.fit(X_scaled); print(f"  [M8] log-likelihood={self.gmm.score(X_scaled):.4f}")
+        # reg_covar=1e-3 prevents singular covariance; try n_components=8, fall back to 5 or 3
+        for n_comp in [self.n_components, 5, 3]:
+            try:
+                self.gmm=GaussianMixture(
+                    n_components=n_comp,
+                    covariance_type="full",
+                    random_state=self.seed,
+                    n_init=3,
+                    reg_covar=1e-3,
+                    max_iter=200
+                )
+                self.gmm.fit(X_scaled)
+                print(f"  [M8] n_components={n_comp} log-likelihood={self.gmm.score(X_scaled):.4f}")
+                break
+            except Exception as e:
+                print(f"  [M8] n_components={n_comp} failed: {e}, retrying with fewer components...")
+                self.gmm=None
+        if self.gmm is None:
+            print("  [M8] All GMM fits failed — using diagonal covariance fallback")
+            self.gmm=GaussianMixture(
+                n_components=3,
+                covariance_type="diag",
+                random_state=self.seed,
+                n_init=3,
+                reg_covar=1e-2
+            )
+            self.gmm.fit(X_scaled)
+            print(f"  [M8] Fallback diag GMM log-likelihood={self.gmm.score(X_scaled):.4f}")
         return self
 
     def score(self, combo):
         if self.gmm is None: return 0.5
-        x=np.array([_combo_to_gmm_features(list(combo))],dtype=np.float32)
+        x=np.array([_combo_to_gmm_features(list(combo))],dtype=np.float64)
         ll=float(self.gmm.score_samples(self.scaler.transform(x))[0])
         return float(1/(1+np.exp(-ll/5)))
 
     def score_batch(self, candidates):
         if self.gmm is None: return [0.5]*len(candidates)
-        X=np.array([_combo_to_gmm_features(list(c)) for c in candidates],dtype=np.float32)
+        X=np.array([_combo_to_gmm_features(list(c)) for c in candidates],dtype=np.float64)
         lls=self.gmm.score_samples(self.scaler.transform(X))
         return [float(1/(1+np.exp(-ll/5))) for ll in lls]
 
