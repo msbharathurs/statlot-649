@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.pyc
+*.pkl
+*.egg-info/
+venv/
+.venv/
+models/*.pkl
+backtest_summary.json
+data/*.csv
+data/*.json
