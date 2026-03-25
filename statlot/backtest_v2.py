@@ -106,21 +106,30 @@ def save_final_to_s3(all_results_path):
 # ─── DATA LOADING ─────────────────────────────────────────────────────────────
 
 def load_draws(csv_path):
+    """Load draws — supports both old format (Draw/1st Number/...) and clean format (draw_number/n1/n2/...)."""
     import csv
     draws = []
     with open(csv_path, encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
+        headers = reader.fieldnames or []
+        use_clean = "draw_number" in headers  # detect clean lottolyzer format
         for row in reader:
-            nums = sorted([
-                int(row["1st Number"].strip()), int(row["2nd Number"].strip()),
-                int(row["3"].strip()),          int(row["4"].strip()),
-                int(row["5"].strip()),           int(row["6th Number"].strip()),
-            ])
-            add_raw = row.get("Additional Number", "").strip()
+            if use_clean:
+                nums = sorted([int(row[f"n{i}"]) for i in range(1, 7)])
+                add_raw = row.get("additional", "").strip()
+                draw_no = int(row["draw_number"])
+            else:
+                nums = sorted([
+                    int(row["1st Number"].strip()), int(row["2nd Number"].strip()),
+                    int(row["3"].strip()),          int(row["4"].strip()),
+                    int(row["5"].strip()),           int(row["6th Number"].strip()),
+                ])
+                add_raw = row.get("Additional Number", "").strip()
+                draw_no = int(row["Draw"].strip())
             draws.append({
-                "draw_number": int(row["Draw"].strip()),
+                "draw_number": draw_no,
                 "nums": nums,
-                "additional": int(add_raw) if add_raw else None,
+                "additional": int(add_raw) if add_raw and add_raw.isdigit() else None,
             })
     draws.sort(key=lambda x: x["draw_number"])
     return draws
