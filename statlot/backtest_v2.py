@@ -15,7 +15,8 @@ class NumpyEncoder(json.JSONEncoder):
         return super().default(obj)
 
 import os, sys, time
-from multiprocessing import Pool, cpu_count
+from multiprocessing import cpu_count
+import multiprocessing as _mp
 from engine.features_v2 import build_features
 from engine.candidate_gen_v2 import generate_candidates
 from engine.models.m1_bayes import BayesianFreqScorer
@@ -173,7 +174,13 @@ def train_all_models(draws, train_end_idx, iter_name):
     val_history = train[:-50]
     val_candidates = generate_candidates(val_history, n_candidates=5000)
     if val_candidates:
-        ensemble.tune_weights(val_candidates, val_history, val_draws, n_trials=50)
+        # Compute add_bias scores for Optuna tuning
+        add_bias_scores = add_pred.get_bias_scores(val_history, strength=0.15)
+        ensemble.tune_weights(
+            val_candidates, val_history, val_draws,
+            n_trials=100, seed=42,
+            add_bias_scores=add_bias_scores
+        )
     ensemble.save(suffix)
 
     return ensemble, add_pred
@@ -204,8 +211,11 @@ def _score_one_draw(args):
     candidates  = generate_candidates(history, n_candidates=n_candidates)
     from engine.features_v2 import build_features_batch
     feat_matrix = build_features_batch(candidates, history)
-    scored      = ensemble.score_batch(candidates, history, feat_matrix=feat_matrix)
-    predicted_add = add_pred.predict(history, top_n=3)
+    # Get add bias scores and wire into ensemble scoring
+    add_bias_scores = add_pred.get_bias_scores(history, strength=0.15)
+    scored      = ensemble.score_batch(candidates, history, feat_matrix=feat_matrix,
+                                       add_bias_scores=add_bias_scores)
+    predicted_add = add_pred.predict(history, top_n=5)
     tickets     = select_diverse_tickets(scored, n_tickets=5)
     best_match = 0; best_bonus = False; ticket_details = []
     for ticket in tickets:
@@ -254,7 +264,8 @@ def run_test(draws, ensemble, add_pred, test_start_idx, test_end_idx, iter_name)
         for i in range(n_test)
     ]
 
-    with Pool(processes=n_workers) as pool:
+    ctx = _mp.get_context("spawn")
+    with ctx.Pool(processes=n_workers) as pool:
         for i, res in enumerate(pool.imap_unordered(_score_one_draw, worker_args)):
             bm = res["best_match"]; bb = res["best_has_bonus"]
             if bm >= 3:
@@ -361,7 +372,14 @@ def run_all(csv_path):
 
     all_path = os.path.join(RESULTS_DIR, "all_results.json")
     with open(all_path, "w") as f:
-        json.dump(all_summaries, f, indent=2)
+        class _NpEncoder(json.JSONEncoder):
+        def default(self, obj):
+            import numpy as np
+            if isinstance(obj, (np.integer,)): return int(obj)
+            if isinstance(obj, (np.floating,)): return float(obj)
+            if isinstance(obj, np.ndarray): return obj.tolist()
+            return super().default(obj)
+    json.dump(all_summaries, f, indent=2, cls=_NpEncoder)
     save_final_to_s3(all_path)
 
     return all_summaries
