@@ -4,8 +4,17 @@ backtest_v2.py — Clean Walk-Forward Backtest, Zero Leakage
 Metric: P(3+ match OR 3+bonus in best of 5 tickets). Nothing below 3-match reported.
 Auto-saves models + results to S3 after each iteration (if S3_BUCKET env var is set).
 """
-import json, os, sys, time, numpy as np
+import json
+import numpy as np
 
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, (np.integer,)): return int(obj)
+        if isinstance(obj, (np.floating,)): return float(obj)
+        if isinstance(obj, np.ndarray): return obj.tolist()
+        return super().default(obj)
+
+import os, sys, time
 from engine.features_v2 import build_features
 from engine.candidate_gen_v2 import generate_candidates
 from engine.models.m1_bayes import BayesianFreqScorer
@@ -295,7 +304,7 @@ def run_all(csv_path):
         # Save results JSON locally
         out_path = os.path.join(RESULTS_DIR, f"{iteration['name'].lower()}_results.json")
         with open(out_path, "w") as f:
-            json.dump(summary, f, indent=2)
+            json.dump(summary, f, indent=2, cls=NumpyEncoder)
         print(f"\n  Saved locally: {out_path}")
 
         # Push to S3
