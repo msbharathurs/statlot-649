@@ -18,6 +18,21 @@ try:
 except ImportError:
     TORCH_AVAILABLE=False
 
+# ── Module-level QNet so it's picklable by multiprocessing ────────────────
+if TORCH_AVAILABLE:
+    class QNet(nn.Module):
+        def __init__(self, sd, na):
+            super().__init__()
+            self.net = nn.Sequential(
+                nn.Linear(sd, 128), nn.ReLU(),
+                nn.Linear(128, 64), nn.ReLU(),
+                nn.Linear(64, na)
+            )
+        def forward(self, x): return self.net(x)
+else:
+    QNet = None
+
+
 class DQNAgent:
     def __init__(self, state_dim=None, gamma=0.95, epsilon=0.1, lr=1e-3, buffer_capacity=500, tau=0.01, seed=42):
         self.state_dim=state_dim or len(FEATURE_COLS)*10
@@ -28,10 +43,8 @@ class DQNAgent:
         if TORCH_AVAILABLE: self._build_networks(lr)
 
     def _build_networks(self, lr):
-        class QNet(nn.Module):
-            def __init__(self,sd,na): super().__init__(); self.net=nn.Sequential(nn.Linear(sd,128),nn.ReLU(),nn.Linear(128,64),nn.ReLU(),nn.Linear(64,na))
-            def forward(self,x): return self.net(x)
-        self._online_net=QNet(self.state_dim,N_ACTIONS); self._target_net=QNet(self.state_dim,N_ACTIONS)
+        self._online_net=QNet(self.state_dim,N_ACTIONS)
+        self._target_net=QNet(self.state_dim,N_ACTIONS)
         self._target_net.load_state_dict(self._online_net.state_dict())
         self._optimizer=optim.Adam(self._online_net.parameters(),lr=lr)
 
@@ -84,13 +97,10 @@ class DQNAgent:
             self.q_table[idx][a]+=0.1*(r+self.gamma*np.max(self.q_table[idx2])-self.q_table[idx][a])
 
     def fit(self, draws, train_end_idx, n_episodes=2):
-        """Vectorized fit: precompute all state vectors once per episode, skip expensive candidate gen."""
         from engine.features_v2 import build_features_batch, FEATURE_COLS
         print(f"  [M6] Training DQN on {train_end_idx} draws, {n_episodes} episodes...")
-
-        # Precompute ALL state vectors upfront — build feature matrix for all draws once
         all_nums = [tuple(sorted(d["nums"])) for d in draws[:train_end_idx]]
-        all_feats = build_features_batch(all_nums, draws[:train_end_idx])  # (N, F)
+        all_feats = build_features_batch(all_nums, draws[:train_end_idx])
 
         def _state_vec(i):
             start = max(0, i-10)
@@ -102,10 +112,6 @@ class DQNAgent:
             total_reward = 0
             for i in range(10, train_end_idx - 1):
                 actual = set(draws[i+1]["nums"]); additional = draws[i+1].get("additional")
-                # Use top-6 numbers by feature frequency as proxy combo (no candidate gen)
-                freq_col = FEATURE_COLS.index("freq_score") if "freq_score" in FEATURE_COLS else 0
-                scores = all_feats[i, :]  # feature vector for this draw
-                # Simple heuristic: pick 6 numbers based on frequency from history
                 hist_nums = np.array([n for d in draws[max(0,i-50):i] for n in d["nums"]])
                 if len(hist_nums) == 0: continue
                 freq = np.bincount(hist_nums, minlength=50)[1:]
