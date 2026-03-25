@@ -370,16 +370,17 @@ def run_all(csv_path):
         )
     print(f"\n  Random baseline: {RANDOM_BASELINE:.1%}\n{'='*60}")
 
-    all_path = os.path.join(RESULTS_DIR, "all_results.json")
-    with open(all_path, "w") as f:
-        class _NpEncoder(json.JSONEncoder):
+    class _NpEncoder(json.JSONEncoder):
         def default(self, obj):
             import numpy as np
             if isinstance(obj, (np.integer,)): return int(obj)
             if isinstance(obj, (np.floating,)): return float(obj)
             if isinstance(obj, np.ndarray): return obj.tolist()
             return super().default(obj)
-    json.dump(all_summaries, f, indent=2, cls=_NpEncoder)
+
+    all_path = os.path.join(RESULTS_DIR, "all_results.json")
+    with open(all_path, "w") as f:
+        json.dump(all_summaries, f, indent=2, cls=_NpEncoder)
     save_final_to_s3(all_path)
 
     return all_summaries
