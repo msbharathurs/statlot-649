@@ -35,3 +35,26 @@ class AdditionalPredictor:
 
     def score_hit(self, predicted_additionals, actual_additional):
         return actual_additional in predicted_additionals if actual_additional else False
+
+    def to_state(self):
+        import copy
+        return {
+            "alpha": self.alpha, "decay_lambda": self.decay_lambda,
+            "lookback": self.lookback, "top_n": self.top_n,
+            "scores": dict(self._scores),
+            "markov": {k: dict(v) for k, v in self._markov.items()},
+            "additional_seq": list(self._additional_seq),
+        }
+
+    @classmethod
+    def from_state(cls, state):
+        obj = cls(
+            alpha=state["alpha"], decay_lambda=state["decay_lambda"],
+            lookback=state["lookback"], top_n=state["top_n"]
+        )
+        obj._scores = state["scores"]
+        obj._additional_seq = state["additional_seq"]
+        for k, v in state["markov"].items():
+            obj._markov[k] = Counter(v)
+        return obj
+

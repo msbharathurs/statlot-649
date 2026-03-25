@@ -15,6 +15,7 @@ class NumpyEncoder(json.JSONEncoder):
         return super().default(obj)
 
 import os, sys, time
+from multiprocessing import Pool, cpu_count
 from engine.features_v2 import build_features
 from engine.candidate_gen_v2 import generate_candidates
 from engine.models.m1_bayes import BayesianFreqScorer
@@ -178,6 +179,43 @@ def train_all_models(draws, train_end_idx, iter_name):
     return ensemble, add_pred
 
 
+
+# ─── PARALLEL WORKER ────────────────────────────────────────────────────────
+
+def _score_one_draw(args):
+    (draw_idx, test_draw, draws, ensemble_state, add_pred_state, n_candidates) = args
+    from engine.ensemble import EnsembleScorer
+    from engine.models.additional import AdditionalPredictor
+    ensemble  = EnsembleScorer.from_state(ensemble_state)
+    add_pred  = AdditionalPredictor.from_state(add_pred_state)
+    history   = draws[:draw_idx]
+    actual    = set(test_draw["nums"])
+    actual_add = test_draw.get("additional")
+    candidates  = generate_candidates(history, n_candidates=n_candidates)
+    from engine.features_v2 import build_features_batch
+    feat_matrix = build_features_batch(candidates, history)
+    scored      = ensemble.score_batch(candidates, history, feat_matrix=feat_matrix)
+    predicted_add = add_pred.predict(history, top_n=3)
+    tickets     = select_diverse_tickets(scored, n_tickets=5)
+    best_match = 0; best_bonus = False; ticket_details = []
+    for ticket in tickets:
+        m     = len(set(ticket) & actual)
+        bonus = bool(actual_add and actual_add in ticket)
+        if m > best_match or (m == best_match and bonus and not best_bonus):
+            best_match = m; best_bonus = bonus
+        ticket_details.append({"combo": sorted(ticket), "match": m, "has_bonus": bonus})
+    return {
+        "draw_idx":          draw_idx,
+        "draw_number":       test_draw["draw_number"],
+        "actual":            sorted(actual),
+        "actual_additional": actual_add,
+        "tickets":           ticket_details,
+        "best_match":        best_match,
+        "best_has_bonus":    best_bonus,
+        "add_predictor_hit": add_pred.score_hit(predicted_add, actual_add),
+        "predicted_additional": predicted_add,
+    }
+
 # ─── TESTING ─────────────────────────────────────────────────────────────────
 
 def run_test(draws, ensemble, add_pred, test_start_idx, test_end_idx, iter_name):
@@ -188,56 +226,38 @@ def run_test(draws, ensemble, add_pred, test_start_idx, test_end_idx, iter_name)
     results = []
     hit_3plus = hit_3bonus = hit_4plus = hit_4bonus = hit_5plus = 0
 
-    for i, test_draw in enumerate(test_draws):
-        draw_idx  = test_start_idx - 1 + i
-        history   = draws[:draw_idx]
-        actual    = set(test_draw["nums"])
-        actual_add = test_draw.get("additional")
+    n_workers = min(cpu_count(), 8)
+    print(f"  [parallel] Using {n_workers} workers for {n_test} draws...", flush=True)
 
-        candidates = generate_candidates(history, n_candidates=20000)
-        from engine.features_v2 import build_features_batch
-        feat_matrix = build_features_batch(candidates, history)
-        scored     = ensemble.score_batch(candidates, history, feat_matrix=feat_matrix)
+    ensemble_state = ensemble.to_state()
+    add_pred_state = add_pred.to_state()
 
-        predicted_add = add_pred.predict(history, top_n=3)
-        tickets = select_diverse_tickets(scored, n_tickets=5)
+    worker_args = [
+        (test_start_idx - 1 + i, test_draws[i], draws,
+         ensemble_state, add_pred_state, 20000)
+        for i in range(n_test)
+    ]
 
-        best_match = 0; best_bonus = False; ticket_details = []
-        for ticket in tickets:
-            m     = len(set(ticket) & actual)
-            bonus = bool(actual_add and actual_add in ticket)
-            if m > best_match or (m == best_match and bonus and not best_bonus):
-                best_match = m; best_bonus = bonus
-            ticket_details.append({"combo": sorted(ticket), "match": m, "has_bonus": bonus})
+    with Pool(processes=n_workers) as pool:
+        for i, res in enumerate(pool.imap_unordered(_score_one_draw, worker_args)):
+            bm = res["best_match"]; bb = res["best_has_bonus"]
+            if bm >= 3:
+                hit_3plus += 1
+                if bb: hit_3bonus += 1
+            if bm >= 4:
+                hit_4plus += 1
+                if bb: hit_4bonus += 1
+            if bm >= 5:
+                hit_5plus += 1
+            results.append(res)
+            done = i + 1
+            if done % 10 == 0 or done == n_test:
+                r3 = hit_3plus / done
+                r3b = hit_3bonus / done
+                r4 = hit_4plus / done
+                print(f"  draw {done:3d}/{n_test} | 3+: {r3:.1%} | 3+bonus: {r3b:.1%} | 4+: {r4:.1%}", flush=True)
 
-        if best_match >= 3:
-            hit_3plus += 1
-            if best_bonus: hit_3bonus += 1
-        if best_match >= 4:
-            hit_4plus += 1
-            if best_bonus: hit_4bonus += 1
-        if best_match >= 5:
-            hit_5plus += 1
-
-        results.append({
-            "draw_number":       test_draw["draw_number"],
-            "actual":            sorted(actual),
-            "actual_additional": actual_add,
-            "tickets":           ticket_details,
-            "best_match":        best_match,
-            "best_has_bonus":    best_bonus,
-            "add_predictor_hit": add_pred.score_hit(predicted_add, actual_add),
-            "predicted_additional": predicted_add,
-        })
-
-        if (i + 1) % 10 == 0 or (i + 1) == n_test:
-            print(
-                f"  draw {i+1:3d}/{n_test} | "
-                f"3+: {hit_3plus/(i+1):.1%} | "
-                f"3+bonus: {hit_3bonus/(i+1):.1%} | "
-                f"4+: {hit_4plus/(i+1):.1%}",
-                flush=True,
-            )
+    results.sort(key=lambda r: r["draw_idx"])
 
     return {
         "iter":           iter_name,

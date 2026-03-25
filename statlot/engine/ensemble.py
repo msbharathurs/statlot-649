@@ -84,3 +84,17 @@ class EnsembleScorer:
         path=os.path.join(MODELS_DIR,f"ensemble_weights{suffix}.pkl")
         if os.path.exists(path): self.weights=joblib.load(path); return True
         return False
+    def to_state(self):
+        """Pickle the full ensemble to a temp file, return the path."""
+        import tempfile, joblib, os
+        os.makedirs(MODELS_DIR, exist_ok=True)
+        path = os.path.join(MODELS_DIR, "_ensemble_parallel_state.pkl")
+        joblib.dump(self, path)
+        return {"pkl_path": path}
+
+    @classmethod
+    def from_state(cls, state):
+        """Load ensemble from the pickled file in each worker."""
+        import joblib
+        return joblib.load(state["pkl_path"])
+
