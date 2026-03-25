@@ -56,10 +56,16 @@ class RFScorer:
         x=np.array([[feats.get(c,0) for c in FEATURE_COLS]],dtype=np.float32)
         return float(self.model.predict_proba(x)[0][1])
 
-    def score_batch(self, candidates, history):
+    def score_batch(self, candidates, history, feat_matrix=None):
         if self.model is None: return [0.5]*len(candidates)
-        rows=[[build_features(list(c),history).get(col,0) for col in FEATURE_COLS] for c in candidates]
-        return self.model.predict_proba(np.array(rows,dtype=np.float32))[:,1].tolist()
+        if feat_matrix is not None:
+            import numpy as np
+            X = feat_matrix if hasattr(feat_matrix, "shape") else np.array(feat_matrix, dtype=np.float32)
+        else:
+            from engine.features_v2 import build_features, FEATURE_COLS
+            from engine.features_v2 import build_features_batch
+            X = build_features_batch([tuple(sorted(c)) for c in candidates], history).astype(np.float32)
+        return self.model.predict_proba(X.astype(np.float32))[:,1].tolist()
 
     def save(self, suffix=""):
         os.makedirs(MODELS_DIR,exist_ok=True)

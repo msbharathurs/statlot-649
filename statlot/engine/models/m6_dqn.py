@@ -36,10 +36,13 @@ class DQNAgent:
         self._optimizer=optim.Adam(self._online_net.parameters(),lr=lr)
 
     def _state_from_history(self, history):
+        from engine.features_v2 import build_features_batch
         recent=history[-10:] if len(history)>=10 else history
-        vecs=[[build_features(d["nums"],[]).get(c,0) for c in FEATURE_COLS] for d in recent]
+        batch=[tuple(sorted(d["nums"])) for d in recent]
+        feats=build_features_batch(batch, history[:-len(recent)] if len(history)>len(recent) else history[:1])
+        vecs=feats.tolist() if hasattr(feats,'tolist') else feats
         while len(vecs)<10: vecs.insert(0,[0.0]*len(FEATURE_COLS))
-        return np.array(vecs,dtype=np.float32).flatten()
+        return np.array(vecs[:10],dtype=np.float32).flatten()
 
     def _state_hash(self, state): return abs(hash(state.tobytes()))%1000
 
