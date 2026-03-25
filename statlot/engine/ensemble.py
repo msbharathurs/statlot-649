@@ -138,7 +138,7 @@ class EnsembleScorer:
                 if add_bias_arr is not None and add_w_norm > 0:
                     scores_arr += add_w_norm * add_bias_arr[:n_eval]
 
-                top_idx = np.argsort(scores_arr)[::-1][:10]
+                top_idx = np.argsort(scores_arr)[::-1][:15]
                 top_combos = [candidates[i] for i in top_idx]
                 # Use best of 5 (diversity-selected) — approximate: just take top unique
                 if max(len(set(c) & actual) for c in top_combos) >= 3:
