@@ -183,14 +183,24 @@ def train_all_models(draws, train_end_idx, iter_name):
 # ─── PARALLEL WORKER ────────────────────────────────────────────────────────
 
 def _score_one_draw(args):
-    (draw_idx, test_draw, draws, ensemble_state, add_pred_state, n_candidates) = args
+    """Worker: load draws from disk to avoid large pickle over IPC pipe."""
+    (draw_idx, test_draw_nums, test_draw_add, test_draw_number,
+     draws_path, ensemble_state, add_pred_state, n_candidates) = args
+
+    import joblib
     from engine.ensemble import EnsembleScorer
     from engine.models.additional import AdditionalPredictor
+
+    # Load draws from disk (fast, avoids IPC pipe serialization)
+    all_draws = joblib.load(draws_path)
+    history   = all_draws[:draw_idx]
+
     ensemble  = EnsembleScorer.from_state(ensemble_state)
     add_pred  = AdditionalPredictor.from_state(add_pred_state)
-    history   = draws[:draw_idx]
-    actual    = set(test_draw["nums"])
-    actual_add = test_draw.get("additional")
+
+    actual    = set(test_draw_nums)
+    actual_add = test_draw_add
+
     candidates  = generate_candidates(history, n_candidates=n_candidates)
     from engine.features_v2 import build_features_batch
     feat_matrix = build_features_batch(candidates, history)
@@ -206,7 +216,7 @@ def _score_one_draw(args):
         ticket_details.append({"combo": sorted(ticket), "match": m, "has_bonus": bonus})
     return {
         "draw_idx":          draw_idx,
-        "draw_number":       test_draw["draw_number"],
+        "draw_number":       test_draw_number,
         "actual":            sorted(actual),
         "actual_additional": actual_add,
         "tickets":           ticket_details,
@@ -232,9 +242,15 @@ def run_test(draws, ensemble, add_pred, test_start_idx, test_end_idx, iter_name)
     ensemble_state = ensemble.to_state()
     add_pred_state = add_pred.to_state()
 
+    # Save draws to disk so workers load directly (avoids large IPC pickle)
+    draws_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saved_models", "_draws_cache.pkl")
+    os.makedirs(os.path.dirname(draws_path), exist_ok=True)
+    import joblib as _jl; _jl.dump(draws, draws_path)
+
     worker_args = [
-        (test_start_idx - 1 + i, test_draws[i], draws,
-         ensemble_state, add_pred_state, 20000)
+        (test_start_idx - 1 + i,
+         test_draws[i]["nums"], test_draws[i].get("additional"), test_draws[i]["draw_number"],
+         draws_path, ensemble_state, add_pred_state, 20000)
         for i in range(n_test)
     ]
 
