@@ -65,7 +65,7 @@ class GMMScorer:
         ll=float(self.gmm.score_samples(self.scaler.transform(x))[0])
         return float(1/(1+np.exp(-ll/5)))
 
-    def score_batch(self, candidates):
+    def score_batch(self, candidates, history=None):
         if self.gmm is None: return [0.5]*len(candidates)
         X=np.array([_combo_to_gmm_features(list(c)) for c in candidates],dtype=np.float64)
         lls=self.gmm.score_samples(self.scaler.transform(X))

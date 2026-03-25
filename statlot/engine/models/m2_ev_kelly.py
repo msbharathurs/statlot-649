@@ -34,5 +34,5 @@ class EVKellyScorer:
         kelly=self.kelly_fraction*(ev-TICKET_COST)/max(ev,0.001)
         return float(kelly)
 
-    def score_batch(self, candidates):
+    def score_batch(self, candidates, history=None):
         return [self.score(c) for c in candidates]

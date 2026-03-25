@@ -25,5 +25,5 @@ class BayesianFreqScorer:
         if not self._number_scores: return 0.0
         return float(np.mean([self._number_scores.get(n,0) for n in combo]))
 
-    def score_batch(self, candidates):
+    def score_batch(self, candidates, history=None):
         return [self.score(c) for c in candidates]

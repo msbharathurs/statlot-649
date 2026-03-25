@@ -18,7 +18,7 @@ class MonteCarloScorer:
         indices=np.random.choice(n,size=self.n_simulations,replace=True,p=self._weights)
         return float(np.mean([len(combo_set&self._draw_sets[i])>=3 for i in indices]))
 
-    def score_batch(self, candidates):
+    def score_batch(self, candidates, history=None):
         if not self._draw_sets: return [0.0]*len(candidates)
         n=len(self._draw_sets)
         indices=np.random.choice(n,size=self.n_simulations,replace=True,p=self._weights)
