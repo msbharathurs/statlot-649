@@ -3,6 +3,9 @@ features_v2.py — Dual-Grid Feature Engineering for StatLot 649
 Grid A (Primary):   9 cols x 6 rows  (red ticket)
 Grid B (Secondary): 7 cols x 7 rows  (digital blue ticket)
 ~90 features per draw. All computed using PRIOR draws only.
+
+FAST PATH: build_features_batch(candidates, history) computes features for
+all candidates in one vectorized pass — O(n) instead of O(n*|history|).
 """
 import numpy as np
 from collections import Counter
@@ -49,6 +52,157 @@ def should_eliminate(nums):
         all(n%2!=0 for n in nums) or all(n%2==0 for n in nums) or
         s<100 or s>210 or consec>=4
     )
+
+
+# --- HISTORY CONTEXT (computed once per draw, shared across all candidates) ---
+
+def _build_history_context(history):
+    ctx = {}
+    past_sums = [sum(d["nums"]) for d in history[-10:]]
+    ctx["last_sum"] = past_sums[-1] if past_sums else 147.0
+    ctx["sum_ma3"] = float(np.mean(past_sums[-3:])) if len(past_sums)>=3 else 147.0
+    ctx["sum_ma5"] = float(np.mean(past_sums[-5:])) if len(past_sums)>=5 else 147.0
+    ctx["sum_ma10"] = float(np.mean(past_sums)) if past_sums else 147.0
+    lookback50 = history[-50:] if len(history)>=50 else history
+    freq50 = Counter(n for d in lookback50 for n in d["nums"])
+    ctx["freq50"] = freq50
+    if freq50:
+        sorted_f = [n for n,_ in freq50.most_common()]
+        ctx["hot10"] = set(sorted_f[:10])
+        ctx["cold10"] = set(sorted_f[-10:])
+    else:
+        ctx["hot10"] = set(); ctx["cold10"] = set()
+    ctx["freq_expected"] = max(len(lookback50)*6/49, 0.001)
+    for w in (10, 20, 50):
+        window = history[-w:] if len(history)>=w else history
+        ctx[f"fq{w}"] = Counter(n for d in window for n in d["nums"])
+    pair_freq = Counter()
+    for d in history[-50:]:
+        pn = sorted(d["nums"])
+        for a, b in combinations(pn, 2): pair_freq[(a,b)] += 1
+    ctx["pair_freq"] = pair_freq
+    trans = Counter()
+    if len(history) >= 2:
+        for i in range(1, min(len(history), 30)):
+            prev_set = set(history[-i]["nums"])
+            for a in prev_set:
+                for b in prev_set:
+                    if a != b: trans[(a,b)] += 1
+    ctx["total_trans"] = max(sum(trans.values()), 1)
+    ctx["trans"] = trans
+    all_hist = history[-200:] if len(history)>=200 else history
+    ctx["total_draws_200"] = len(all_hist)
+    ctx["freq200"] = Counter(n for d in all_hist for n in d["nums"])
+    decay = np.zeros(50, dtype=np.float32)
+    for k, d in enumerate(reversed(all_hist[-50:]), 1):
+        for n in d["nums"]: decay[n] += np.exp(-0.05*k)
+    ctx["decay"] = decay
+    ctx["prev_sets"] = [set(history[-lag]["nums"]) if len(history)>=lag else set()
+                        for lag in range(1, 11)]
+    return ctx
+
+
+# --- FAST BATCH FEATURE BUILDER ---
+
+def build_features_batch(candidates, history):
+    """
+    Compute feature matrix for ALL candidates at once.
+    Returns np.ndarray shape (N, len(FEATURE_COLS)) — dtype float32.
+    """
+    ctx = _build_history_context(history)
+    N = len(candidates)
+    C = np.array([sorted(c) for c in candidates], dtype=np.int32)  # (N,6)
+    rows = np.zeros((N, len(FEATURE_COLS)), dtype=np.float32)
+
+    s = C.sum(axis=1)
+    rows[:, 0] = s
+    rows[:, 1] = s / 6.0
+    rows[:, 2] = C.std(axis=1)
+    rows[:, 3] = C[:, 5] - C[:, 0]
+    odd = (C % 2 != 0).sum(axis=1)
+    rows[:, 4] = odd
+    rows[:, 5] = 6 - odd
+    low = (C <= 24).sum(axis=1)
+    rows[:, 6] = low
+    rows[:, 7] = 6 - low
+    for d, (lo, hi) in enumerate([(1,10),(11,20),(21,30),(31,40),(41,49)]):
+        rows[:, 8+d] = ((C >= lo) & (C <= hi)).sum(axis=1)
+    rows[:, 13] = (rows[:, 8:13] == 0).sum(axis=1)
+    gaps = np.diff(C, axis=1)
+    rows[:, 14] = gaps.min(axis=1)
+    rows[:, 15] = gaps.max(axis=1)
+    rows[:, 16] = gaps.mean(axis=1)
+    rows[:, 17] = gaps.std(axis=1)
+    rows[:, 18] = (gaps == 1).sum(axis=1)
+    rA = (C - 1) // 9 + 1
+    cA = (C - 1) % 9 + 1
+    rows[:, 19] = np.array([len(set(r)) for r in rA.tolist()])
+    rows[:, 20] = np.array([len(set(c)) for c in cA.tolist()])
+    rows[:, 21] = rA.max(axis=1) - rA.min(axis=1)
+    rows[:, 22] = cA.max(axis=1) - cA.min(axis=1)
+    rows[:, 23] = rA.std(axis=1)
+    rows[:, 24] = cA.std(axis=1)
+    for r in range(1, 7): rows[:, 25+r-1] = (rA == r).sum(axis=1)
+    for c in range(1, 10): rows[:, 31+c-1] = (cA == c).sum(axis=1)
+    rows[:, 40] = (C >= 46).sum(axis=1)
+    rB = (C - 1) // 7 + 1
+    cB = (C - 1) % 7 + 1
+    rows[:, 41] = np.array([len(set(r)) for r in rB.tolist()])
+    rows[:, 42] = np.array([len(set(c)) for c in cB.tolist()])
+    rows[:, 43] = rB.max(axis=1) - rB.min(axis=1)
+    rows[:, 44] = cB.max(axis=1) - cB.min(axis=1)
+    rows[:, 45] = rB.std(axis=1)
+    rows[:, 46] = cB.std(axis=1)
+    for r in range(1, 8): rows[:, 47+r-1] = (rB == r).sum(axis=1)
+    for c in range(1, 8): rows[:, 54+c-1] = (cB == c).sum(axis=1)
+    rows[:, 61] = (C >= 43).sum(axis=1)
+    rows[:, 62] = np.array([dual_grid_score(list(C[i])) for i in range(N)])
+    # history-dependent
+    for lag, prev_set in enumerate(ctx["prev_sets"], 1):
+        if prev_set:
+            rows[:, 62+lag] = np.array([len(set(C[i].tolist()) & prev_set) for i in range(N)])
+    rows[:, 73] = s - ctx["last_sum"]
+    rows[:, 74] = ctx["sum_ma3"]
+    rows[:, 75] = ctx["sum_ma5"]
+    rows[:, 76] = ctx["sum_ma10"]
+    hot10 = ctx["hot10"]; cold10 = ctx["cold10"]
+    rows[:, 77] = np.array([sum(1 for n in C[i] if n in hot10) for i in range(N)])
+    rows[:, 78] = np.array([sum(1 for n in C[i] if n in cold10) for i in range(N)])
+    freq50 = ctx["freq50"]; expected = ctx["freq_expected"]
+    rows[:, 79] = np.array([float(np.mean([freq50.get(int(n),0) for n in C[i]]))/expected for i in range(N)])
+    for wi, w in enumerate((10, 20, 50)):
+        fq = ctx[f"fq{w}"]
+        rows[:, 80+wi] = np.array([float(np.mean([fq.get(int(n),0) for n in C[i]])) for i in range(N)])
+    pair_freq = ctx["pair_freq"]
+    def _pair(combo):
+        ps = [pair_freq.get((combo[a], combo[b]), 0) for a in range(6) for b in range(a+1, 6)]
+        return float(np.mean(ps)), int(max(ps))
+    pr = np.array([_pair(list(C[i])) for i in range(N)])
+    rows[:, 83] = pr[:, 0]; rows[:, 84] = pr[:, 1]
+    trans = ctx["trans"]; total_trans = ctx["total_trans"]
+    rows[:, 85] = np.array([
+        float(sum(trans.get((int(C[i,a]), int(C[i,b])), 0) for a in range(6) for b in range(6) if a!=b)/total_trans)
+        for i in range(N)])
+    freq200 = ctx["freq200"]; total_d = ctx["total_draws_200"]; decay = ctx["decay"]
+    alpha = 1.0
+    def _bayes(combo):
+        sc = []
+        for n in combo:
+            n = int(n)
+            bp = (freq200.get(n,0)+alpha)/(total_d*6/49+alpha*49)
+            sc.append(bp*(1+float(decay[n])))
+        return float(np.mean(sc)), float(min(sc)), float(max(sc))
+    br = np.array([_bayes(list(C[i])) for i in range(N)])
+    rows[:, 86] = br[:, 0]; rows[:, 87] = br[:, 1]; rows[:, 88] = br[:, 2]
+    def _since(combo_set):
+        for k, d in enumerate(reversed(history[-50:])):
+            if combo_set & set(d["nums"]): return k
+        return 50
+    rows[:, 89] = np.array([_since(set(int(x) for x in C[i])) for i in range(N)])
+    return rows
+
+
+# --- ORIGINAL SINGLE-COMBO BUILDER (kept for training data / M9 etc.) ---
 
 def build_features(nums, history):
     nums=sorted(nums); feat={}

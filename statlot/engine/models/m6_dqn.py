@@ -83,21 +83,43 @@ class DQNAgent:
             s,a,r,s2=self.replay_buffer[i]; idx=self._state_hash(s); idx2=self._state_hash(s2)
             self.q_table[idx][a]+=0.1*(r+self.gamma*np.max(self.q_table[idx2])-self.q_table[idx][a])
 
-    def fit(self, draws, train_end_idx, n_episodes=3):
+    def fit(self, draws, train_end_idx, n_episodes=2):
+        """Vectorized fit: precompute all state vectors once per episode, skip expensive candidate gen."""
+        from engine.features_v2 import build_features_batch, FEATURE_COLS
         print(f"  [M6] Training DQN on {train_end_idx} draws, {n_episodes} episodes...")
-        from engine.candidate_gen_v2 import generate_candidates
+
+        # Precompute ALL state vectors upfront — build feature matrix for all draws once
+        all_nums = [tuple(sorted(d["nums"])) for d in draws[:train_end_idx]]
+        all_feats = build_features_batch(all_nums, draws[:train_end_idx])  # (N, F)
+
+        def _state_vec(i):
+            start = max(0, i-10)
+            rows = all_feats[start:i]
+            pad = np.zeros((10 - len(rows), all_feats.shape[1]), dtype=np.float32)
+            return np.vstack([pad, rows]).flatten() if len(rows) < 10 else rows.flatten()
+
         for episode in range(n_episodes):
-            total_reward=0
-            for i in range(10,train_end_idx-1):
-                history=draws[:i]; action_idx=np.random.randint(N_ACTIONS) if np.random.rand()<self.epsilon else 0
-                actual=set(draws[i+1]["nums"]); additional=draws[i+1].get("additional")
-                candidates=generate_candidates(history,n_candidates=500)
-                if not candidates: continue
-                combo=list(candidates[0]); match=len(set(combo)&actual); bonus=1 if additional and additional in combo else 0
-                reward=50 if match>=5 else (10 if match==4 else (3+bonus*2 if match>=3 else -1))
-                total_reward+=reward; self.store_transition(history,action_idx,reward,draws[:i+1]); self.train_step()
+            total_reward = 0
+            for i in range(10, train_end_idx - 1):
+                actual = set(draws[i+1]["nums"]); additional = draws[i+1].get("additional")
+                # Use top-6 numbers by feature frequency as proxy combo (no candidate gen)
+                freq_col = FEATURE_COLS.index("freq_score") if "freq_score" in FEATURE_COLS else 0
+                scores = all_feats[i, :]  # feature vector for this draw
+                # Simple heuristic: pick 6 numbers based on frequency from history
+                hist_nums = np.array([n for d in draws[max(0,i-50):i] for n in d["nums"]])
+                if len(hist_nums) == 0: continue
+                freq = np.bincount(hist_nums, minlength=50)[1:]
+                combo = set(np.argsort(freq)[-6:] + 1)
+                match = len(combo & actual)
+                bonus = 1 if additional and additional in combo else 0
+                reward = 50 if match>=5 else (10 if match==4 else (3+bonus*2 if match>=3 else -1))
+                total_reward += reward
+                s = _state_vec(i); s2 = _state_vec(i+1)
+                action_idx = np.random.randint(N_ACTIONS) if np.random.rand() < self.epsilon else 0
+                self.replay_buffer.append((s, action_idx, reward, s2))
+                self.train_step()
             print(f"  [M6] Episode {episode+1}/{n_episodes} | total_reward={total_reward}")
-        self._trained=True; return self
+        self._trained = True; return self
 
     def score(self, combo, history):
         state=self._state_from_history(history)
@@ -106,6 +128,11 @@ class DQNAgent:
             with torch.no_grad(): q_vals=self._online_net(torch.FloatTensor(state)).numpy()
             return float(np.max(q_vals)/50.0)
         return float(np.max(self.q_table[self._state_hash(state)])/50.0)
+
+    def score_batch(self, candidates, history=None):
+        if history is None: history = []
+        s = self.score(None, history) if history else 0.5
+        return [s] * len(candidates)
 
     def save(self, suffix=""):
         os.makedirs(MODELS_DIR,exist_ok=True)

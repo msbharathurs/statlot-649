@@ -186,7 +186,9 @@ def run_test(draws, ensemble, add_pred, test_start_idx, test_end_idx, iter_name)
         actual_add = test_draw.get("additional")
 
         candidates = generate_candidates(history, n_candidates=20000)
-        scored     = ensemble.score_batch(candidates, history)
+        from engine.features_v2 import build_features_batch
+        feat_matrix = build_features_batch(candidates, history)
+        scored     = ensemble.score_batch(candidates, history, feat_matrix=feat_matrix)
 
         predicted_add = add_pred.predict(history, top_n=3)
         tickets = select_diverse_tickets(scored, n_tickets=5)

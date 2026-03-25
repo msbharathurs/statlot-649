@@ -29,11 +29,12 @@ class EnsembleScorer:
             if w>0: total+=w*self._score_one(combo,history,name,scorer); weight_sum+=w
         return total/weight_sum if weight_sum>0 else 0.0
 
-    def score_batch(self, candidates, history):
+    def score_batch(self, candidates, history, feat_matrix=None):
         model_scores={}
         for name,scorer in self._scorers.items():
             try:
                 if name=="m4": model_scores[name]=scorer.score_batch(candidates)
+                elif name in ("m3","m5") and feat_matrix is not None: model_scores[name]=scorer.score_batch(candidates,history,feat_matrix)
                 elif name in ("m3","m5"): model_scores[name]=scorer.score_batch(candidates,history)
                 elif name in ("m7","m9"): model_scores[name]=scorer.score_batch(candidates,history)
                 elif name=="m8": model_scores[name]=scorer.score_batch(candidates)
