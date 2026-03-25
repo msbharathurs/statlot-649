@@ -99,16 +99,44 @@ class EnsembleScorer:
 
         print(f"  [ensemble] Tuning weights ({n_trials} trials, {len(actual_draws_val)} val draws)...")
 
-        # Pre-compute all model scores once
+        # Fast diversity selector for Optuna (avoids importing inside hot loop)
+        def _select_tickets_fast(scored, n=5, max_sh=3, lam=0.2):
+            if not scored: return []
+            sel = [scored[0][0]]
+            sel_s = [set(scored[0][0])]
+            pool = list(scored[1:])
+            while len(sel) < n and pool:
+                best_adj, best_idx = -999, -1
+                for idx, (combo, score) in enumerate(pool):
+                    cs = set(combo)
+                    if sel_s and max(len(cs & s) for s in sel_s) > max_sh:
+                        continue
+                    jac = max(len(cs & s) / len(cs | s) for s in sel_s) if sel_s else 0
+                    adj = score - lam * jac
+                    if adj > best_adj:
+                        best_adj, best_idx = adj, idx
+                if best_idx == -1:
+                    for combo, _ in pool:
+                        if combo not in sel:
+                            sel.append(combo); sel_s.append(set(combo))
+                            pool = [(c,s) for c,s in pool if c != combo]
+                            break
+                else:
+                    chosen, _ = pool[best_idx]
+                    sel.append(chosen); sel_s.append(set(chosen)); pool.pop(best_idx)
+            return sel
+
+        # Pre-compute all model scores once — store as np arrays
         model_score_matrix = {}
         for name, scorer in self._scorers.items():
             try:
-                if name in ("m3", "m5", "m7", "m9"):
-                    model_score_matrix[name] = scorer.score_batch(candidates, history)
-                else:
-                    model_score_matrix[name] = scorer.score_batch(candidates, history)
+                scores = scorer.score_batch(candidates, history)
+                model_score_matrix[name] = np.array(scores, dtype=np.float32)
             except:
-                model_score_matrix[name] = [0.5] * len(candidates)
+                model_score_matrix[name] = np.full(len(candidates), 0.5, dtype=np.float32)
+        # Stack into matrix for fast matmul: shape (n_models, n_candidates)
+        model_names_list = list(model_score_matrix.keys())
+        score_matrix = np.vstack([model_score_matrix[n] for n in model_names_list])  # (n_models, n_cand)
 
         # Pre-compute add_bias array if available
         add_bias_arr = None
@@ -129,19 +157,23 @@ class EnsembleScorer:
             add_w_norm = add_w / total
 
             hits = 0
+            # Vectorised weight application using matmul
+            w_vec = np.array([weights.get(n, 0) for n in model_names_list], dtype=np.float32)
+            scores_arr = (w_vec @ score_matrix[:, :n_eval]).astype(np.float64)  # (n_eval,)
+            if add_bias_arr is not None and add_w_norm > 0:
+                scores_arr_base = scores_arr + add_w_norm * add_bias_arr[:n_eval]
+            else:
+                scores_arr_base = scores_arr
+
             for val_draw in actual_draws_val:
                 actual = set(val_draw["nums"])
-                scores_arr = np.array([
-                    sum(weights.get(n, 0) * model_score_matrix[n][i] for n in model_names)
-                    for i in range(n_eval)
-                ])
-                if add_bias_arr is not None and add_w_norm > 0:
-                    scores_arr += add_w_norm * add_bias_arr[:n_eval]
-
-                top_idx = np.argsort(scores_arr)[::-1][:15]
-                top_combos = [candidates[i] for i in top_idx]
-                # Use best of 5 (diversity-selected) — approximate: just take top unique
-                if max(len(set(c) & actual) for c in top_combos) >= 3:
+                # Use top-50, run diversity selector — matches real test-time behaviour
+                # This rewards weights that concentrate 3 numbers in ONE ticket,
+                # not just any of 15 raw candidates (which rewarded wide-pool strategies)
+                top_idx = np.argsort(scores_arr_base)[::-1][:50]
+                scored_top = [(candidates[i], float(scores_arr_base[i])) for i in top_idx]
+                tickets = _select_tickets_fast(scored_top)
+                if any(len(set(t) & actual) >= 3 for t in tickets):
                     hits += 1
             return hits / len(actual_draws_val)
 
