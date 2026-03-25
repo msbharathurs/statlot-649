@@ -38,7 +38,7 @@ class EnsembleScorer:
                 elif name in ("m3","m5"): model_scores[name]=scorer.score_batch(candidates,history)
                 elif name in ("m7","m9"): model_scores[name]=scorer.score_batch(candidates,history)
                 elif name=="m8": model_scores[name]=scorer.score_batch(candidates)
-                else: model_scores[name]=scorer.score_batch(candidates)
+                else: model_scores[name]=scorer.score_batch(candidates, history)
             except Exception as e:
                 print(f"  [ensemble] {name} batch failed: {e}"); model_scores[name]=[0.5]*len(candidates)
         weight_sum=sum(self.weights.get(n,0) for n in self._scorers)
@@ -54,7 +54,7 @@ class EnsembleScorer:
         for name,scorer in self._scorers.items():
             try:
                 if name in ("m3","m5","m7","m9"): model_score_matrix[name]=scorer.score_batch(candidates,history)
-                else: model_score_matrix[name]=scorer.score_batch(candidates)
+                else: model_score_matrix[name]=scorer.score_batch(candidates, history)
             except: model_score_matrix[name]=[0.5]*len(candidates)
 
         def objective(trial):
