@@ -10,9 +10,9 @@ What it does:
 import sys, os, json, csv, argparse, datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-DATA_DIR    = os.path.join(os.path.dirname(__file__), "data")
+DATA_DIR    = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DRAWS_PATH  = os.path.join(DATA_DIR, "draws_clean.csv")
-RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results")
+RESULTS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "results")
 
 def load_draws_csv():
     rows = []
