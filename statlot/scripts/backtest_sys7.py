@@ -102,24 +102,30 @@ def grid_b_row(n):
 
 def dual_grid_ok_sys7(nums):
     """
-    Relaxed dual-grid rules for 7-number system.
-    6num rules: GridA <=4 rows, GridB <=5 rows.
-    Sys7: GridA <=5 rows (out of 6), GridB <=6 rows (out of 7) — must span at least 4 GridA rows.
-    Row 6 of GridA (46-49, only 4 numbers) penalised but not eliminated.
+    Strict dual-grid elimination for System 7 — same logic as 6num should_eliminate(),
+    adapted for 7 numbers. Same physical ticket, same grid, same distribution rules.
+    sum range scaled: 7num * (100/6) = 117 min, 7num * (210/6) = 245 max.
     """
-    a_rows = set(grid_a_row(n) for n in nums)
-    b_rows = set(grid_b_row(n) for n in nums)
-    n_a_rows = len(a_rows)
-    n_b_rows = len(b_rows)
-    # Must cover at least 3 GridA rows (spread), max 5
-    if n_a_rows < 3 or n_a_rows > 5: return False
-    # Must cover at least 3 GridB rows (spread), max 6
-    if n_b_rows < 3 or n_b_rows > 6: return False
-    # Cold row penalty: GridA row 6 (46-49) shouldn't have 3+ numbers
-    cold_a = sum(1 for n in nums if 46 <= n <= 49)
-    if cold_a >= 3: return False
+    nums = sorted(nums)
+    rA = [rowA(n) for n in nums]; cA = [colA(n) for n in nums]
+    rB = [rowB(n) for n in nums]; cB = [colB(n) for n in nums]
+    s = sum(nums)
+    consec = sum(1 for i in range(len(nums)-1) if nums[i+1]-nums[i]==1)
+    if len(set(rA)) <= 2 or len(set(cA)) <= 2: return False
+    if (max(rA)-min(rA)) <= 1 or (max(cA)-min(cA)) <= 3: return False
+    if len(set(rB)) <= 2 or len(set(cB)) <= 2: return False
+    if (max(rB)-min(rB)) <= 1 or (max(cB)-min(cB)) <= 3: return False
+    if sum(1 for n in nums if n >= 46) >= 4: return False  # cold row A
+    if sum(1 for n in nums if n >= 43) >= 5: return False  # cold zone B
+    if all(n % 2 != 0 for n in nums) or all(n % 2 == 0 for n in nums): return False
+    if s < 117 or s > 245: return False
+    if consec >= 4: return False
     return True
 
+def rowA(n): return (n - 1) // 9 + 1
+def colA(n): return (n - 1) % 9 + 1
+def rowB(n): return (n - 1) // 7 + 1
+def colB(n): return (n - 1) % 7 + 1
 
 def has_triplet(nums):
     s = sorted(nums)

@@ -50,9 +50,6 @@ N_SELECT     = 8
 N_EPISODES   = 2
 LSTM_EPOCHS  = 15
 
-GRID_A_ROWS = [(1,9),(10,18),(19,27),(28,36),(37,45),(46,49)]
-GRID_B_ROWS = [(1,7),(8,14),(15,21),(22,28),(29,35),(36,42),(43,49)]
-
 ITERATIONS = [
     {"name": "Iter1", "train_idx": 1650},
     {"name": "Iter2", "train_idx": 1750},
@@ -91,19 +88,30 @@ def grid_b_row(n):
 
 def dual_grid_ok_sys8(nums):
     """
-    Relaxed dual-grid for 8 numbers.
-    Must span at least 4 GridA rows (out of 6), max 6.
-    Must span at least 4 GridB rows (out of 7), max 7.
-    Cold row (46-49 in GridA): max 3 numbers from there.
+    Strict dual-grid elimination for System 8 — same logic as 6num should_eliminate(),
+    adapted for 8 numbers. Same physical ticket, same grid, same distribution rules.
+    sum range: 8num * (100/6) = 134 min, 8num * (210/6) = 280 max.
     """
-    a_rows = set(grid_a_row(n) for n in nums)
-    b_rows = set(grid_b_row(n) for n in nums)
-    if len(a_rows) < 4: return False
-    if len(b_rows) < 4: return False
-    cold_a = sum(1 for n in nums if 46 <= n <= 49)
-    if cold_a >= 4: return False
+    nums = sorted(nums)
+    rA = [rowA(n) for n in nums]; cA = [colA(n) for n in nums]
+    rB = [rowB(n) for n in nums]; cB = [colB(n) for n in nums]
+    s = sum(nums)
+    consec = sum(1 for i in range(len(nums)-1) if nums[i+1]-nums[i]==1)
+    if len(set(rA)) <= 2 or len(set(cA)) <= 2: return False
+    if (max(rA)-min(rA)) <= 1 or (max(cA)-min(cA)) <= 3: return False
+    if len(set(rB)) <= 2 or len(set(cB)) <= 2: return False
+    if (max(rB)-min(rB)) <= 1 or (max(cB)-min(cB)) <= 3: return False
+    if sum(1 for n in nums if n >= 46) >= 4: return False
+    if sum(1 for n in nums if n >= 43) >= 5: return False
+    if all(n % 2 != 0 for n in nums) or all(n % 2 == 0 for n in nums): return False
+    if s < 134 or s > 280: return False
+    if consec >= 4: return False
     return True
 
+def rowA(n): return (n - 1) // 9 + 1
+def colA(n): return (n - 1) % 9 + 1
+def rowB(n): return (n - 1) // 7 + 1
+def colB(n): return (n - 1) % 7 + 1
 
 def has_triplet(nums):
     s = sorted(nums)
