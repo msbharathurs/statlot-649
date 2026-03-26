@@ -136,9 +136,16 @@ def main():
         "predicted_additional": sorted(predicted_add[:5]),
         "ensemble_weights": ensemble.weights,
     }
+    # Convert any numpy types to native Python
+    import numpy as np
+    def convert(o):
+        if isinstance(o, (np.integer,)): return int(o)
+        if isinstance(o, (np.floating,)): return float(o)
+        if isinstance(o, (np.ndarray,)): return o.tolist()
+        raise TypeError(f"Not serializable: {type(o)}")
     out_path = os.path.join(RESULTS_DIR, "final_prediction.json")
     with open(out_path, "w") as f:
-        json.dump(out, f, indent=2)
+        json.dump(out, f, indent=2, default=convert)
     print(f"\nSaved → {out_path}")
 
 if __name__ == "__main__":
