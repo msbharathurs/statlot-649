@@ -156,7 +156,6 @@ class EnsembleScorer:
             weights = {k: v / total for k, v in raw.items()}
             add_w_norm = add_w / total
 
-            hits = 0
             # Vectorised weight application using matmul
             w_vec = np.array([weights.get(n, 0) for n in model_names_list], dtype=np.float32)
             scores_arr = (w_vec @ score_matrix[:, :n_eval]).astype(np.float64)  # (n_eval,)
@@ -165,15 +164,13 @@ class EnsembleScorer:
             else:
                 scores_arr_base = scores_arr
 
+            hits = 0
             for val_draw in actual_draws_val:
                 actual = set(val_draw["nums"])
-                # Use top-50, run diversity selector — matches real test-time behaviour
-                # This rewards weights that concentrate 3 numbers in ONE ticket,
-                # not just any of 15 raw candidates (which rewarded wide-pool strategies)
-                top_idx = np.argsort(scores_arr_base)[::-1][:50]
-                scored_top = [(candidates[i], float(scores_arr_base[i])) for i in top_idx]
-                tickets = _select_tickets_fast(scored_top)
-                if any(len(set(t) & actual) >= 3 for t in tickets):
+                # top-10 raw candidates — simple, fast, what produced best v3 result
+                top_idx = np.argsort(scores_arr_base)[::-1][:10]
+                top_combos = [candidates[i] for i in top_idx]
+                if max(len(set(c) & actual) for c in top_combos) >= 3:
                     hits += 1
             return hits / len(actual_draws_val)
 

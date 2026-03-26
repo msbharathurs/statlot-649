@@ -9,8 +9,8 @@ diversity_select_v2.py — Upgraded ticket selector with:
    comes from the 30 unique numbers across 5 tickets, not forced spread)
 4. Pool expanded from 500 → 1000 candidates for better bonus-aware pick
 """
-LAMBDA = 0.2
-MAX_SHARED = 3
+LAMBDA = 0.3
+MAX_SHARED = 2
 N_TICKETS = 5
 
 def jaccard(a, b):

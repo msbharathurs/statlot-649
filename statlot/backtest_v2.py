@@ -178,16 +178,16 @@ def train_all_models(draws, train_end_idx, iter_name):
                           ("m5",m5),("m6",m6),("m7",m7),("m8",m8),("m9",m9)]:
         ensemble.register(name, scorer)
 
-    print("\n[ENSEMBLE] Tuning weights on last 100 train draws...")
-    val_draws   = train[-100:]
+    print("\n[ENSEMBLE] Tuning weights on last 50 train draws...")
+    val_draws   = train[-50:]
     val_history = train[:-50]
     val_candidates = generate_candidates(val_history, n_candidates=5000)
     if val_candidates:
         # Compute add_bias scores for Optuna tuning
-        add_bias_scores = add_pred.get_bias_scores(val_history, strength=0.25)
+        add_bias_scores = add_pred.get_bias_scores(val_history, strength=0.15)
         ensemble.tune_weights(
             val_candidates, val_history, val_draws,
-            n_trials=150, seed=42,
+            n_trials=100, seed=42,
             add_bias_scores=add_bias_scores
         )
     ensemble.save(suffix)
@@ -221,7 +221,7 @@ def _score_one_draw(args):
     from engine.features_v2 import build_features_batch
     feat_matrix = build_features_batch(candidates, history)
     # Get add bias scores and wire into ensemble scoring
-    add_bias_scores = add_pred.get_bias_scores(history, strength=0.25)
+    add_bias_scores = add_pred.get_bias_scores(history, strength=0.15)
     scored      = ensemble.score_batch(candidates, history, feat_matrix=feat_matrix,
                                        add_bias_scores=add_bias_scores)
     predicted_add = add_pred.predict(history, top_n=7)
