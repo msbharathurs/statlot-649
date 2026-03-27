@@ -1,0 +1,47 @@
+Loading draws_4d_working.json ...
+  4471 draws loaded
+Creating table: draws ...
+  4471 draws inserted
+Creating table: draw_numbers ...
+Streaming feature computation + insert ...
+  [500/4471] draws processed, 9213 rows written so far
+  [1000/4471] draws processed, 18413 rows written so far
+  [1500/4471] draws processed, 32213 rows written so far
+  [2000/4471] draws processed, 41413 rows written so far
+  [2500/4471] draws processed, 55213 rows written so far
+  [3000/4471] draws processed, 64413 rows written so far
+  [3500/4471] draws processed, 78213 rows written so far
+  [4000/4471] draws processed, 87413 rows written so far
+  Total rows inserted: 102823
+Building indexes ...
+
+=== Sanity Check ===
+draws table      : 4471 rows
+draw_numbers table: 102823 rows
+
+-- 1st prize number_class distribution --
+number_class  cnt   pct
+      unique 2237 50.03
+ single_pair 1934 43.26
+      triple  161  3.60
+ double_pair  133  2.97
+        quad    6  0.13
+
+-- Top 10 most drawn 1st prize numbers --
+number  times_drawn
+  1660            4
+  1505            4
+  9431            4
+  9674            4
+  3798            4
+  2575            4
+  9335            4
+  6763            4
+  9406            4
+  8446            4
+
+-- Pattern prevalence across all tiers --
+ pct_adj_pair  pct_nonadj_pair  pct_palindrome  pct_3consec  pct_ap  pct_all_even  pct_all_odd  pct_double_double
+        26.84             22.3            0.96         3.07    0.35          6.09         6.22               2.79
+
+Done. DuckDB → /home/ubuntu/statlot-649/draws_4d.duckdb  (15.3 MB)
