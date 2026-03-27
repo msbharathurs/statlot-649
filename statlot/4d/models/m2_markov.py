@@ -42,7 +42,7 @@ def train_m2(train_up_to_draw: int) -> dict:
     """).fetchall()
     con.close()
 
-    NUM_COLS = list(range(2, 27))  # indices of the 23 number columns in each row
+    NUM_COLS = list(range(2, 25))  # indices of the 23 number columns in each row
 
     # ── digit-position transitions ────────────────────────────────────────────
     # For each position 0-3: count (prev1_digit, prev2_digit) -> next_digit
@@ -73,7 +73,7 @@ def train_m2(train_up_to_draw: int) -> dict:
     num_trans_2nd = defaultdict(lambda: defaultdict(int))
     num_trans_1st = defaultdict(lambda: defaultdict(int))
 
-    prize_col = 2  # prize_1st column index
+    prize_col = 2  # prize_1st column index (after draw_id, draw_date)
     for i in range(1, len(draws)):
         p1 = draws[i - 1][prize_col]
         c  = draws[i][prize_col]
