@@ -27,19 +27,25 @@ from models.m4_digit_position import train_m4, score_m4
 from models.m5_structure      import train_m5, score_m5
 from models.m6_tier_bias      import train_m6, score_m6
 from models.m7_fft_cycle      import train_m7, score_m7
+from models.m8_cross_tier     import train_m8, score_m8
+from models.m9_digit_correlation import train_m9, score_m9
+from models.m10_gap_momentum  import train_m10, score_m10
 
 ALL_NUMBERS = [f"{i:04d}" for i in range(10000)]
 
 
 # ── Final tuned weights (update these after Optuna tuning in Phase 2) ─────────
 FINAL_WEIGHTS = {
-    "m1": 0.25,
-    "m2": 0.20,
-    "m3": 0.15,
-    "m4": 0.15,
+    "m1": 0.15,
+    "m2": 0.18,
+    "m3": 0.10,
+    "m4": 0.10,
     "m5": 0.10,
-    "m6": 0.10,
-    "m7": 0.05,
+    "m6": 0.08,
+    "m7": 0.07,
+    "m8": 0.10,
+    "m9": 0.07,
+    "m10": 0.05,
 }
 
 
@@ -68,8 +74,14 @@ def train_all_models(max_draw: int) -> dict:
     print("  [6/7] M6 Tier Bias ...")
     models["m6"] = train_m6(max_draw)
 
-    print("  [7/7] M7 FFT Cycle ...")
+    print("  [7/10] M7 FFT Cycle ...")
     models["m7"] = train_m7(max_draw)
+    print("  [8/10] M8 Cross-Tier ...")
+    models["m8"] = train_m8(max_draw)
+    print("  [9/10] M9 Digit Correlation ...")
+    models["m9"] = train_m9(max_draw)
+    print("  [10/10] M10 Gap+Momentum ...")
+    models["m10_1st"] = train_m10(max_draw, tier_group="1st")
 
     # Save all models
     for name, obj in models.items():
@@ -94,6 +106,9 @@ def score_all(models: dict, candidate: str, tier_group: str = "1st",
     s += w.get("m5", 0) * score_m5(models["m5"], candidate, tier_group=tier_group)
     s += w.get("m6", 0) * score_m6(models["m6"], candidate, tier_group=tier_group)
     s += w.get("m7", 0) * score_m7(models["m7"], candidate)
+    s += w.get("m8", 0) * score_m8(models["m8"], candidate)
+    s += w.get("m9", 0) * score_m9(models["m9"], candidate)
+    s += w.get("m10", 0) * score_m10(models["m10_1st"], candidate)
     return s
 
 

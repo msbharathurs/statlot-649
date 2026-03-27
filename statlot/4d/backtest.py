@@ -25,18 +25,24 @@ from models.m4_digit_position import train_m4, score_m4
 from models.m5_structure     import train_m5, score_m5
 from models.m6_tier_bias     import train_m6, score_m6
 from models.m7_fft_cycle     import train_m7, score_m7
+from models.m8_cross_tier    import train_m8, score_m8
+from models.m9_digit_correlation import train_m9, score_m9
+from models.m10_gap_momentum import train_m10, score_m10
 
 ALL_NUMBERS = [f"{i:04d}" for i in range(10000)]
 
 # Default ensemble weights (will be tuned by Optuna in Phase 2)
 DEFAULT_WEIGHTS = {
-    "m1": 0.25,
-    "m2": 0.20,
-    "m3": 0.15,
-    "m4": 0.15,
+    "m1": 0.15,
+    "m2": 0.18,
+    "m3": 0.10,
+    "m4": 0.10,
     "m5": 0.10,
-    "m6": 0.10,
-    "m7": 0.05,
+    "m6": 0.08,
+    "m7": 0.07,
+    "m8": 0.10,
+    "m9": 0.07,
+    "m10": 0.05,
 }
 
 
@@ -58,6 +64,9 @@ def ensemble_score(models: dict, candidate: str, weights: dict = None,
         s += w.get("m6", 0) * score_m6(models["m6"], candidate, tier_group=tier_group)
     if "m7" in models:
         s += w.get("m7", 0) * score_m7(models["m7"], candidate)
+    s += w.get("m8", 0) * score_m8(models["m8"], candidate)
+    s += w.get("m9", 0) * score_m9(models["m9"], candidate)
+    s += w.get("m10", 0) * score_m10(models["m10_1st"], candidate)
     return s
 
 
@@ -124,6 +133,9 @@ def run_backtest(
             models["m5"] = train_m5(current_train_end)
             models["m6"] = train_m6(current_train_end)
             models["m7"] = train_m7(current_train_end)
+            models["m8"] = train_m8(current_train_end)
+            models["m9"] = train_m9(current_train_end)
+            models["m10_1st"] = train_m10(current_train_end, tier_group=tier_group)
 
         # Score all 10,000 candidates
         scores = {}
