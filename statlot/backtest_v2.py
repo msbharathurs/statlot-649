@@ -20,13 +20,13 @@ import multiprocessing as _mp
 from engine.features_v2 import build_features
 from engine.candidate_gen_v2 import generate_candidates
 from engine.models.m1_bayes import BayesianFreqScorer
-from engine.models.m2_ev_kelly import EVKellyScorer
+from engine.models.m2_poisson_gap import train_m2_poisson, score_m2_poisson
 from engine.models.m3_rf import RFScorer
-from engine.models.m4_monte_carlo import MonteCarloScorer
+from engine.models.m4_structured_mc import train_m4_structured_mc, score_m4_structured_mc
 from engine.models.m5_xgb import XGBScorer
 from engine.models.m6_dqn import DQNAgent
 from engine.models.m7_markov import MarkovScorer
-from engine.models.m8_gmm import GMMScorer
+from engine.models.m8_fft_cycle import train_m8_fft, score_m8_fft
 from engine.models.m9_lstm import LSTMScorer
 from engine.models.additional import AdditionalPredictor
 from engine.ensemble import EnsembleScorer
@@ -145,14 +145,29 @@ def train_all_models(draws, train_end_idx, iter_name):
     print("\n[M1] Bayesian Freq+Decay")
     m1 = BayesianFreqScorer(); m1.fit(train)
 
-    print("[M2] EV/Kelly")
-    m2 = EVKellyScorer(); m2.fit(train)
+    print("[M2] Poisson Gap / Overdue Scoring")
+    m2_model = train_m2_poisson([{"nums": d["nums"]} if isinstance(d, dict) else {"nums": d} for d in train])
+
+    class _M2Scorer:
+        def __init__(self, model): self._m = model
+        def score(self, combo, *a, **kw): return score_m2_poisson(self._m, combo)
+        def score_batch(self, candidates, *a, **kw):
+            return [score_m2_poisson(self._m, list(c)) for c in candidates]
+    m2 = _M2Scorer(m2_model)
 
     print("[M3] Random Forest + SMOTE + Platt")
     m3 = RFScorer(); m3.fit(draws, train_end_idx); m3.save(suffix)
 
-    print("[M4] Monte Carlo importance sampling")
-    m4 = MonteCarloScorer(); m4.fit(train)
+    print("[M4] Structure-Constrained Monte Carlo")
+    _train_lists = [d["nums"] if isinstance(d, dict) else list(d) for d in train]
+    m4_model = train_m4_structured_mc(_train_lists, n_samples=50000)
+
+    class _M4Scorer:
+        def __init__(self, model): self._m = model
+        def score(self, combo, *a, **kw): return score_m4_structured_mc(self._m, combo)
+        def score_batch(self, candidates, *a, **kw):
+            return [score_m4_structured_mc(self._m, list(c)) for c in candidates]
+    m4 = _M4Scorer(m4_model)
 
     print("[M5] XGBoost + Optuna")
     m5 = XGBScorer(); m5.fit(draws, train_end_idx); m5.save(suffix)
@@ -163,8 +178,16 @@ def train_all_models(draws, train_end_idx, iter_name):
     print("[M7] 2nd-order Markov")
     m7 = MarkovScorer(); m7.fit(train)
 
-    print("[M8] GMM density")
-    m8 = GMMScorer(); m8.fit(draws, train_end_idx); m8.save(suffix)
+    print("[M8] FFT Cycle Detector")
+    _hist_lists = [d["nums"] if isinstance(d, dict) else list(d) for d in train]
+    m8_model = train_m8_fft(_hist_lists)
+
+    class _M8Scorer:
+        def __init__(self, model): self._m = model
+        def score(self, combo, *a, **kw): return score_m8_fft(self._m, combo)
+        def score_batch(self, candidates, *a, **kw):
+            return [score_m8_fft(self._m, list(c)) for c in candidates]
+    m8 = _M8Scorer(m8_model)
 
     print("[M9] LSTM sequence model")
     m9 = LSTMScorer(epochs=15); m9.fit(draws, train_end_idx); m9.save(suffix)

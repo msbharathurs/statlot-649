@@ -8,7 +8,7 @@ FAST PATH: build_features_batch(candidates, history) computes features for
 all candidates in one vectorized pass — O(n) instead of O(n*|history|).
 """
 import numpy as np
-from collections import Counter
+from collections import Counter, defaultdict
 from itertools import combinations
 
 def rowA(n): return (n - 1) // 9 + 1
@@ -99,6 +99,29 @@ def _build_history_context(history):
     ctx["decay"] = decay
     ctx["prev_sets"] = [set(history[-lag]["nums"]) if len(history)>=lag else set()
                         for lag in range(1, 11)]
+
+    # Poisson gap model — per-number overdue z-scores
+    N_hist = len(history)
+    _last_seen_p = {}
+    _gap_lists_p = defaultdict(list)
+    for _idx, _d in enumerate(history):
+        for _num in _d["nums"]:
+            if _num in _last_seen_p:
+                _gap_lists_p[_num].append(_idx - _last_seen_p[_num])
+            _last_seen_p[_num] = _idx
+    _poisson_z = {}
+    for _num in range(1, 50):
+        _g = _gap_lists_p[_num]
+        if len(_g) >= 5:
+            _mean_g = float(np.mean(_g))
+            _std_g  = float(np.std(_g)) if np.std(_g) > 0 else 1.0
+        else:
+            _mean_g = N_hist / max(1, len(_g) + 1)
+            _std_g  = _mean_g * 0.5
+        _ds = (N_hist - 1 - _last_seen_p[_num]) if _num in _last_seen_p else N_hist
+        _poisson_z[_num] = float((_ds - _mean_g) / _std_g)
+    ctx["poisson_z"] = _poisson_z
+
     return ctx
 
 
@@ -285,6 +308,7 @@ def build_features(nums, history):
         bayes_p=(freq_all.get(n,0)+alpha)/(total_draws*6/49+alpha*49)
         bayes_scores.append(bayes_p*(1+decay_score))
     feat["bayes_score"]=float(np.mean(bayes_scores))
+    feat["poisson_overdue"]=float(np.mean([ctx.get("poisson_z",{}).get(n,0.0) for n in combo]))
     feat["bayes_score_min"]=float(min(bayes_scores))
     feat["bayes_score_max"]=float(max(bayes_scores))
     draws_since=0
@@ -310,7 +334,7 @@ FEATURE_COLS = [
     "sum_delta","sum_ma3","sum_ma5","sum_ma10",
     "hot_count","cold_count","avg_freq_ratio","avg_freq_10","avg_freq_20","avg_freq_50",
     "avg_pair_freq","max_pair_freq","markov_score",
-    "bayes_score","bayes_score_min","bayes_score_max","draws_since_repeat",
+    "bayes_score","bayes_score_min","bayes_score_max","poisson_overdue","draws_since_repeat",
 ]
 
 def build_datalake(draws):
