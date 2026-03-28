@@ -222,6 +222,9 @@ def build_features_batch(candidates, history):
             if combo_set & set(d["nums"]): return k
         return 50
     rows[:, 89] = np.array([_since(set(int(x) for x in C[i])) for i in range(N)])
+    # Poisson overdue z-score (index 90)
+    _pz = ctx.get("poisson_z", {})
+    rows[:, 90] = np.array([float(np.mean([_pz.get(int(n), 0.0) for n in C[i]])) for i in range(N)])
     return rows
 
 
@@ -308,7 +311,23 @@ def build_features(nums, history):
         bayes_p=(freq_all.get(n,0)+alpha)/(total_draws*6/49+alpha*49)
         bayes_scores.append(bayes_p*(1+decay_score))
     feat["bayes_score"]=float(np.mean(bayes_scores))
-    feat["poisson_overdue"]=float(np.mean([ctx.get("poisson_z",{}).get(n,0.0) for n in combo]))
+    # Poisson overdue z-score (inline for single-path)
+    _ph = history[-200:] if len(history)>=200 else history
+    _N_p = len(_ph)
+    _last_p = {}; _gap_p = defaultdict(list)
+    for _ii, _dd in enumerate(_ph):
+        for _nn in _dd["nums"]:
+            if _nn in _last_p: _gap_p[_nn].append(_ii - _last_p[_nn])
+            _last_p[_nn] = _ii
+    def _pz(n):
+        g = _gap_p[n]
+        if len(g) >= 5:
+            mg = float(np.mean(g)); sg = float(np.std(g)) if np.std(g) > 0 else 1.0
+        else:
+            mg = _N_p / max(1, len(g)+1); sg = mg * 0.5
+        ds = (_N_p - 1 - _last_p[n]) if n in _last_p else _N_p
+        return (ds - mg) / sg
+    feat["poisson_overdue"] = float(np.mean([_pz(n) for n in nums]))
     feat["bayes_score_min"]=float(min(bayes_scores))
     feat["bayes_score_max"]=float(max(bayes_scores))
     draws_since=0
