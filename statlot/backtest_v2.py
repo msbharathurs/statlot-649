@@ -137,6 +137,24 @@ def load_draws(csv_path):
 
 # ─── TRAINING ────────────────────────────────────────────────────────────────
 
+class _M2Scorer:
+    def __init__(self, model): self._m = model
+    def score(self, combo, *a, **kw): return score_m2_poisson(self._m, combo)
+    def score_batch(self, candidates, *a, **kw):
+        return [score_m2_poisson(self._m, list(c)) for c in candidates]
+
+class _M4Scorer:
+    def __init__(self, model): self._m = model
+    def score(self, combo, *a, **kw): return score_m4_structured_mc(self._m, combo)
+    def score_batch(self, candidates, *a, **kw):
+        return [score_m4_structured_mc(self._m, list(c)) for c in candidates]
+
+class _M8Scorer:
+    def __init__(self, model): self._m = model
+    def score(self, combo, *a, **kw): return score_m8_fft(self._m, combo)
+    def score_batch(self, candidates, *a, **kw):
+        return [score_m8_fft(self._m, list(c)) for c in candidates]
+
 def train_all_models(draws, train_end_idx, iter_name):
     train = draws[:train_end_idx]
     suffix = f"_{iter_name.lower()}"
@@ -148,11 +166,6 @@ def train_all_models(draws, train_end_idx, iter_name):
     print("[M2] Poisson Gap / Overdue Scoring")
     m2_model = train_m2_poisson([{"nums": d["nums"]} if isinstance(d, dict) else {"nums": d} for d in train])
 
-    class _M2Scorer:
-        def __init__(self, model): self._m = model
-        def score(self, combo, *a, **kw): return score_m2_poisson(self._m, combo)
-        def score_batch(self, candidates, *a, **kw):
-            return [score_m2_poisson(self._m, list(c)) for c in candidates]
     m2 = _M2Scorer(m2_model)
 
     print("[M3] Random Forest + SMOTE + Platt")
@@ -162,11 +175,6 @@ def train_all_models(draws, train_end_idx, iter_name):
     _train_lists = [d["nums"] if isinstance(d, dict) else list(d) for d in train]
     m4_model = train_m4_structured_mc(_train_lists, n_samples=50000)
 
-    class _M4Scorer:
-        def __init__(self, model): self._m = model
-        def score(self, combo, *a, **kw): return score_m4_structured_mc(self._m, combo)
-        def score_batch(self, candidates, *a, **kw):
-            return [score_m4_structured_mc(self._m, list(c)) for c in candidates]
     m4 = _M4Scorer(m4_model)
 
     print("[M5] XGBoost + Optuna")
@@ -182,11 +190,6 @@ def train_all_models(draws, train_end_idx, iter_name):
     _hist_lists = [d["nums"] if isinstance(d, dict) else list(d) for d in train]
     m8_model = train_m8_fft(_hist_lists)
 
-    class _M8Scorer:
-        def __init__(self, model): self._m = model
-        def score(self, combo, *a, **kw): return score_m8_fft(self._m, combo)
-        def score_batch(self, candidates, *a, **kw):
-            return [score_m8_fft(self._m, list(c)) for c in candidates]
     m8 = _M8Scorer(m8_model)
 
     print("[M9] LSTM sequence model")
