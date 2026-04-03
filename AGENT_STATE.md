@@ -1,6 +1,6 @@
 # AGENT_STATE.md
 # Statlot Project — Live Ground Truth
-# Updated: 2026-04-03
+# Updated: 2026-04-04
 # THIS FILE IS THE FIRST THING YOU READ EVERY SESSION. KEEP IT CURRENT.
 
 ## WHAT IS THIS PROJECT
@@ -22,6 +22,7 @@ models after each draw, and stores predictions in DuckDB.
 | Backtest scripts      | ~/statlot-649/statlot/                                      | ✅ In git |
 | Agent state           | ~/statlot-649/AGENT_STATE.md                                | ✅ This file |
 | Agent rules           | ~/statlot-649/AGENT_RULES.md                                | ✅ In git |
+| Python venv           | /home/ubuntu/statlot-649/statlot/venv/bin/python3           | ✅ Confirmed |
 
 ## DO NOT USE THESE PATHS — they are stale duplicates:
 - `~/statlot-649/statlot/statlot_toto.duckdb` — 12KB EMPTY
