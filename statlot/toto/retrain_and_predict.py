@@ -88,15 +88,15 @@ def load_training_draws() -> tuple:
     """
     con = duckdb.connect(DB_PATH)
     rows = con.execute(f"""
-        SELECT draw_no, draw_date, n1, n2, n3, n4, n5, n6, additional
+        SELECT draw_number, draw_date, n1, n2, n3, n4, n5, n6, additional
         FROM toto_draws
-        WHERE draw_no >= {MIN_TRAIN_DRAW}
+        WHERE draw_number >= {MIN_TRAIN_DRAW}
           AND n1 IS NOT NULL AND n2 IS NOT NULL AND n3 IS NOT NULL
           AND n4 IS NOT NULL AND n5 IS NOT NULL AND n6 IS NOT NULL
           AND draw_date IS NOT NULL
-        ORDER BY draw_no ASC
+        ORDER BY draw_number ASC
     """).fetchall()
-    max_draw_no = con.execute(f"SELECT MAX(draw_no) FROM toto_draws WHERE draw_no >= {MIN_TRAIN_DRAW}").fetchone()[0]
+    max_draw_no = con.execute(f"SELECT MAX(draw_number) FROM toto_draws WHERE draw_number >= {MIN_TRAIN_DRAW}").fetchone()[0]
     con.close()
 
     draws = []
