@@ -1,1 +1,34 @@
 .agents/.env
+
+# DuckDB files — live data, never commit
+*.duckdb
+*.duckdb.wal
+
+# Large data files
+*.json.bak
+sp_historical_draws.json
+draws_4d.json
+draws_4d_*.json
+
+# Logs
+logs/
+*.log
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Saved models (large binary files)
+statlot/saved_models/
+
+# Pipeline state
+pipeline_status.json
+statlot/results/
+backtest_results/
+predictions/
+results/
+
+# Local scratch files
+*.bak
