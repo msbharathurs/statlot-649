@@ -12,6 +12,7 @@ def get_conn():
 
 def init_schema():
     con = get_conn()
+
     con.execute("""
         CREATE TABLE IF NOT EXISTS toto_draws (
             draw_number     INTEGER PRIMARY KEY,
@@ -26,36 +27,24 @@ def init_schema():
 
     con.execute("""
         CREATE TABLE IF NOT EXISTS toto_predictions (
-            id              VARCHAR PRIMARY KEY,   -- draw_number + '_' + generated_ts
-            draw_number     INTEGER,               -- the draw this predicts (NULL if unknown yet)
+            id              VARCHAR PRIMARY KEY,
+            draw_number     INTEGER,
             draw_date       DATE,
             generated_at    TIMESTAMP DEFAULT now(),
-
-            -- Mandatory tickets (JSON arrays)
-            sys6_t1         JSON,   -- [n1,n2,n3,n4,n5,n6]
+            sys6_t1         JSON,
             sys6_t2         JSON,
             sys6_t3         JSON,
-            sys7_t1         JSON,   -- [n1..n7]
-
-            -- Optional system entries (NULL if not generated)
+            sys7_t1         JSON,
             sys8_t1         JSON,
             sys9_t1         JSON,
             sys10_t1        JSON,
             sys11_t1        JSON,
             sys12_t1        JSON,
-
-            -- Bonus ticket
             bonus_t6        JSON,
-
-            -- Additional number prediction
-            additional_picks JSON,  -- [n1,n2,n3,n4,n5]
-
-            -- Costs (SGD)
-            cost_mandatory  DECIMAL(8,2),  -- 3*$1 + $7 = $10
-            cost_with_sys8  DECIMAL(8,2),  -- + $28
-            cost_with_sys12 DECIMAL(8,2),  -- + $924
-
-            -- Model metadata
+            additional_picks JSON,
+            cost_mandatory  DECIMAL(8,2),
+            cost_with_sys8  DECIMAL(8,2),
+            cost_with_sys12 DECIMAL(8,2),
             engine_weights  JSON,
             draws_trained   INTEGER,
             backtest_3plus  VARCHAR,
@@ -66,40 +55,52 @@ def init_schema():
 
     con.execute("""
         CREATE TABLE IF NOT EXISTS toto_results (
-            id              VARCHAR PRIMARY KEY,   -- prediction_id + '_result'
+            id              VARCHAR PRIMARY KEY,
             prediction_id   VARCHAR,
             draw_number     INTEGER,
             draw_date       DATE,
             checked_at      TIMESTAMP DEFAULT now(),
-
-            -- Actual draw
             actual_n1 INTEGER, actual_n2 INTEGER, actual_n3 INTEGER,
             actual_n4 INTEGER, actual_n5 INTEGER, actual_n6 INTEGER,
             actual_additional INTEGER,
-
-            -- Prize check per ticket (JSON: {group, matches, prize_sgd, combinations_checked})
             sys6_t1_result  JSON,
             sys6_t2_result  JSON,
             sys6_t3_result  JSON,
             sys7_t1_result  JSON,
-            sys8_t1_result  JSON,   -- NULL if not bought
+            sys8_t1_result  JSON,
             sys9_t1_result  JSON,
             sys10_t1_result JSON,
             sys11_t1_result JSON,
             sys12_t1_result JSON,
             bonus_t6_result JSON,
-
-            -- Summary
-            best_group      INTEGER,   -- lowest group number won (1=best)
-            total_prize_mandatory  DECIMAL(10,2),  -- prize from 3 Sys6 + 1 Sys7
-            total_prize_full       DECIMAL(10,2),  -- if all sys entries bought
+            best_group      INTEGER,
+            total_prize_mandatory  DECIMAL(10,2),
+            total_prize_full       DECIMAL(10,2),
             total_cost_mandatory   DECIMAL(8,2),
             any_win                BOOLEAN DEFAULT FALSE,
             notes                  VARCHAR
         )
     """)
 
-    # Weekly summary view
+    # Permanent audit trail — every prediction run appends a row here
+    # Do NOT delete or replace. toto_predictions_log is additive.
+    con.execute("""
+        CREATE SEQUENCE IF NOT EXISTS toto_predictions_log_id_seq START 1
+    """)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS toto_predictions_log (
+            id              INTEGER DEFAULT nextval('toto_predictions_log_id_seq') PRIMARY KEY,
+            draw_no         INTEGER NOT NULL,
+            predicted_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            model_version   VARCHAR,           -- git commit hash at retrain time
+            predicted_numbers INTEGER[],       -- array of 6 integers
+            confidence_scores DOUBLE[],        -- per-number confidence, NULL if unavailable
+            retrain_draw_no INTEGER,           -- last draw number used in training
+            system_type     VARCHAR,           -- 'sys7' / 'sys8' / '6num' etc.
+            notes           VARCHAR            -- flags e.g. 'data gap present', 'trained on N draws'
+        )
+    """)
+
     con.execute("""
         CREATE VIEW IF NOT EXISTS v_weekly_summary AS
         SELECT
