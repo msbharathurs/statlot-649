@@ -143,3 +143,11 @@ All TOTO predictions so far are 649 model output applied to TOTO with no TOTO-sp
 **What was committed:** AGENT_STATE.md and AGENT_RULES.md added to repo root.
 **Git state:** Clean, up to date with main.
 **Next session must start with:** Building the draw history scraper to fill the 1,828-draw gap.
+
+---
+
+## EC2 Rules
+- Instance type: t3.nano at rest
+- Scale to t3.medium for any retrain or heavy computation
+- Scale back to t3.nano immediately after — do not leave on medium
+- Never scale beyond t3.medium without explicit instruction from Bharath
