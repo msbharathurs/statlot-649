@@ -1,120 +1,151 @@
+#!/usr/bin/env python3
 """
-toto/scrape_latest.py — Poll Singapore Pools for latest TOTO result.
-Polls every 2 min from 6:45pm until new draw found, then exits with result JSON.
+scrape_latest.py — Fetch the latest TOTO draw result.
+
+URL: Static HTML archive (no JS rendering required)
+  https://www.singaporepools.com.sg/DataFileArchive/Lottery/Output/toto_result_top_draws_en.html
+
+Output: ~/statlot-649/statlot/toto/latest_draw.json
+Schema:
+  {
+    "draw_number": 4171,
+    "draw_date": "2026-04-07",
+    "numbers": [1, 7, 8, 23, 30, 33],
+    "additional": 21,
+    "fetched_at": "2026-04-07T19:05:00"
+  }
+
+Exit codes:
+  0 = success, latest_draw.json written
+  1 = fetch/parse error — full error printed to stderr, nothing written
 """
-import requests, json, re, time, sys
-from datetime import datetime, date
+
+import json
+import re
+import sys
+from datetime import datetime
+from pathlib import Path
+
+import requests
 from bs4 import BeautifulSoup
 
-TOTO_URL = "https://www.singaporepools.com.sg/en/product/sr/Pages/toto_results.aspx"
-RESULTS_FILE = "/home/ubuntu/statlot-649/statlot/toto/latest_draw.json"
-STATUS_FILE  = "/home/ubuntu/statlot-649/logs/toto_pipeline_status.json"
+# ----- CONSTANTS -----
 
-def write_status(step, status):
-    with open(STATUS_FILE, "w") as f:
-        json.dump({"step": step, "status": status, "ts": datetime.utcnow().isoformat()}, f)
+STATIC_URL = (
+    "https://www.singaporepools.com.sg"
+    "/DataFileArchive/Lottery/Output/toto_result_top_draws_en.html"
+)
 
-def fetch_latest_draw():
-    """Scrape latest TOTO result page. Returns dict or None."""
-    try:
-        r = requests.get(TOTO_URL, timeout=15,
-            headers={"User-Agent": "Mozilla/5.0 (compatible; StatLot/1.0)"})
-        r.raise_for_status()
-        soup = BeautifulSoup(r.text, "html.parser")
+OUTPUT_PATH = Path(__file__).parent / "latest_draw.json"
 
-        # Draw number
-        draw_no = None
-        for tag in soup.find_all(["span", "div", "td"]):
-            m = re.search(r'Draw\s*No[:\.]?\s*(\d{4,5})', tag.get_text(), re.I)
-            if m:
-                draw_no = int(m.group(1))
-                break
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (X11; Linux x86_64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    )
+}
 
-        # Winning numbers
-        nums = []
-        for tag in soup.find_all(class_=re.compile(r'ball|winning|number', re.I)):
-            t = tag.get_text(strip=True)
-            if t.isdigit() and 1 <= int(t) <= 49:
-                nums.append(int(t))
+DATE_FORMATS = [
+    "%a, %d %b %Y",   # "Thu, 02 Apr 2026"
+    "%d %b %Y",        # "02 Apr 2026"
+]
 
-        additional = None
-        for tag in soup.find_all(class_=re.compile(r'additional|extra|bonus', re.I)):
-            t = tag.get_text(strip=True)
-            if t.isdigit() and 1 <= int(t) <= 49:
-                additional = int(t)
-                break
 
-        # Draw date
-        draw_date = None
-        for tag in soup.find_all(["span","div","td","p"]):
-            txt = tag.get_text(strip=True)
-            m = re.search(r'(\d{1,2}\s+\w+\s+\d{4})', txt)
-            if m:
-                try:
-                    draw_date = datetime.strptime(m.group(1), "%d %B %Y").date().isoformat()
-                    break
-                except: pass
-
-        if draw_no and len(nums) >= 6:
-            return {
-                "draw_number": draw_no,
-                "draw_date": draw_date,
-                "numbers": sorted(nums[:6]),
-                "additional": additional,
-                "scraped_at": datetime.utcnow().isoformat()
-            }
-    except Exception as e:
-        print(f"  Scrape error: {e}")
-    return None
-
-def get_last_known_draw():
-    """Get highest draw number we already have."""
-    try:
-        import duckdb
-        con = duckdb.connect("/home/ubuntu/statlot-649/statlot_toto.duckdb")
-        row = con.execute("SELECT MAX(draw_number) FROM toto_draws").fetchone()
-        return row[0] if row and row[0] else 0
-    except:
-        # Fallback: read from json history
+def parse_date(raw: str) -> str:
+    """Parse a date string like 'Thu, 02 Apr 2026' → '2026-04-02'."""
+    raw = raw.strip()
+    for fmt in DATE_FORMATS:
         try:
-            with open("/home/ubuntu/statlot-649/statlot/sp_historical_draws.json") as f:
-                draws = json.load(f)
-            return max(d["draw_number"] for d in draws)
-        except:
-            return 0
+            return datetime.strptime(raw, fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    raise ValueError(f"Cannot parse date: '{raw}'")
 
-def poll_until_new(max_polls=30, interval=120):
-    """Poll until a new draw appears. Returns draw dict."""
-    last_known = get_last_known_draw()
-    print(f"Last known draw: {last_known}")
-    write_status("poll", "running")
 
-    for i in range(max_polls):
-        print(f"  [{i+1}/{max_polls}] Polling at {datetime.now().strftime('%H:%M:%S')}...")
-        result = fetch_latest_draw()
-        if result:
-            print(f"  Found draw {result['draw_number']}: {result['numbers']} + {result['additional']}")
-            if result["draw_number"] > last_known:
-                print(f"  NEW draw detected!")
-                with open(RESULTS_FILE, "w") as f:
-                    json.dump(result, f, indent=2)
-                write_status("poll", "done")
-                return result
-            else:
-                print(f"  Draw {result['draw_number']} already known. Waiting...")
-        else:
-            print("  Could not parse result yet.")
-        if i < max_polls - 1:
-            time.sleep(interval)
+def fetch_latest() -> dict:
+    """Fetch and parse the latest draw from the static HTML archive."""
+    try:
+        resp = requests.get(STATIC_URL, headers=HEADERS, timeout=15)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        raise RuntimeError(f"HTTP fetch failed: {e}") from e
 
-    write_status("poll", "timeout")
-    print("Polling timed out — no new draw found.")
-    return None
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    # The first <li> in the page is the latest draw.
+    # Each draw block has:
+    #   <th class='drawDate'>Thu, 02 Apr 2026</th>
+    #   <th class='drawNumber'>Draw No. 4170</th>
+    #   <td class='win1'>...</td> … <td class='win6'>…</td>
+    #   <td class='additional'>…</td>
+
+    draw_date_tag = soup.find("th", class_="drawDate")
+    draw_num_tag  = soup.find("th", class_="drawNumber")
+
+    if not draw_date_tag or not draw_num_tag:
+        raise RuntimeError(
+            "Could not find drawDate / drawNumber tags. "
+            "Page structure may have changed."
+        )
+
+    # --- Draw number ---
+    draw_num_text = draw_num_tag.get_text(strip=True)
+    m = re.search(r"(\d+)", draw_num_text)
+    if not m:
+        raise RuntimeError(f"Cannot parse draw number from: '{draw_num_text}'")
+    draw_number = int(m.group(1))
+
+    # --- Draw date ---
+    draw_date_raw = draw_date_tag.get_text(strip=True)
+    draw_date = parse_date(draw_date_raw)
+
+    # --- Winning numbers (win1–win6) ---
+    numbers = []
+    for cls in ["win1", "win2", "win3", "win4", "win5", "win6"]:
+        tag = soup.find("td", class_=cls)
+        if not tag:
+            raise RuntimeError(f"Missing winning number cell: class='{cls}'")
+        numbers.append(int(tag.get_text(strip=True)))
+
+    # --- Additional number ---
+    additional_tag = soup.find("td", class_="additional")
+    if not additional_tag:
+        raise RuntimeError("Missing additional number cell.")
+    additional = int(additional_tag.get_text(strip=True))
+
+    return {
+        "draw_number": draw_number,
+        "draw_date":   draw_date,
+        "numbers":     sorted(numbers),
+        "additional":  additional,
+        "fetched_at":  datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S"),
+    }
+
+
+def main():
+    print(f"Fetching latest TOTO draw from static archive...")
+    print(f"URL: {STATIC_URL}")
+
+    try:
+        result = fetch_latest()
+    except RuntimeError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # Write output
+    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(OUTPUT_PATH, "w") as f:
+        json.dump(result, f, indent=2)
+
+    print(f"\nSUCCESS")
+    print(f"  Draw number : {result['draw_number']}")
+    print(f"  Draw date   : {result['draw_date']}")
+    print(f"  Numbers     : {result['numbers']}")
+    print(f"  Additional  : {result['additional']}")
+    print(f"  Fetched at  : {result['fetched_at']}")
+    print(f"  Written to  : {OUTPUT_PATH}")
+
 
 if __name__ == "__main__":
-    result = poll_until_new()
-    if result:
-        print(json.dumps(result, indent=2))
-        sys.exit(0)
-    else:
-        sys.exit(1)
+    main()
