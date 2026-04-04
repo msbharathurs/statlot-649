@@ -1,6 +1,6 @@
 # AGENT_STATE.md
 # Statlot Project — Live Ground Truth
-# Updated: 2026-04-05 (session end)
+# Updated: 2026-04-05 (session end — Tasks 1–4 complete)
 # THIS FILE IS THE FIRST THING YOU READ EVERY SESSION. KEEP IT CURRENT.
 
 ## WHAT IS THIS PROJECT
@@ -24,7 +24,7 @@ models after each draw, and stores predictions in DuckDB.
 | Agent state           | ~/statlot-649/AGENT_STATE.md                                | ✅ This file |
 | Agent rules           | ~/statlot-649/AGENT_RULES.md                                | ✅ In git (commit c55517c) |
 | Python venv           | /home/ubuntu/statlot-649/statlot/venv/bin/python3           | ✅ Confirmed |
-| scrape_latest.py      | ~/statlot-649/statlot/toto/scrape_latest.py                 | ✅ FIXED 2026-04-05 |
+| scrape_latest.py      | ~/statlot-649/statlot/toto/scrape_latest.py                 | ✅ FIXED 2026-04-05 (commit 7a5c887) |
 | latest_draw.json      | ~/statlot-649/statlot/toto/latest_draw.json                 | ✅ draw #4170 |
 
 ## DO NOT USE THESE PATHS — they are stale duplicates:
@@ -34,17 +34,53 @@ models after each draw, and stores predictions in DuckDB.
 
 ---
 
-## CURRENT DB STATE (verified 2026-04-05)
+## CURRENT DB STATE (verified 2026-04-05 13:40 UTC)
 
 ### TOTO DuckDB (`/home/ubuntu/statlot-649/statlot_toto.duckdb`)
 
 | Table                | Rows | Notes |
 |----------------------|------|-------|
-| toto_draws           | 2,973 | Draws #4–#4170. Range: min=#4, max=#4170. |
-| toto_predictions     | 3    | Draws #4168, #4170, #4171 |
-| toto_results         | 0    | Win-check has NEVER run — still broken |
-| toto_predictions_log | 20   | ✅ Table exists. 10 dry-run rows + 10 real rows for draw #4171 |
-| v_weekly_summary     | 3    | View, not a real table |
+| toto_draws           | 2,973 | Draws #4–#4170. Training window: #2341–#4170 = 1830 draws. |
+| toto_predictions     | 4    | Legacy table — old schema |
+| toto_results         | 1    | ✅ Win-check ran for draw #4170. Any win: True (Sys11=Group7, Sys12=Group5). |
+| toto_predictions_log | 30   | ✅ 10 dry-run + 10 model=1680776 + 10 model=7a5c887 (all for draw #4171) |
+| v_weekly_summary     | 4    | View |
+
+**Win-check result for draw #4170 (verbatim stdout):**
+```
+Winning: [1, 7, 8, 23, 30, 33] + Additional: 21
+  sys6_t1:  [4,15,17,35,43,49]                      → No win | $0
+  sys6_t2:  [8,13,22,34,37,49]                       → No win | $0
+  sys6_t3:  [4,22,31,34,35,49]                       → No win | $0
+  sys7_t1:  [4,15,17,22,35,43,49]                    → No win | $0
+  sys8_t1:  [4,15,17,22,34,35,37,43,49]              → No win | $0
+  sys9_t1:  [4,12,13,15,17,22,28,34,35,37,43,49]     → No win | $0
+  sys10_t1: [4,8,10,12,13,15,17,22,28,30,34,35,37,43,46,49] → No win | $0
+  sys11_t1: [4,8,10,12,13,15,17,22,24,28,30,31,32,33,34,35,37,40,43,46,49] → Group 7 ($10) | Fixed: $8160
+  sys12_t1: [1,4,6,8,10,12,13,14,15,17,18,22,24,28,30,31,32,33,34,35,37,38,40,43,46,48,49] → Group 5 ($50) | Fixed: $83490
+  bonus_t6: [4,21,30,35,37,49]                       → No win | $0
+Best group: Group 5 ($50) | Total prize (all sys): $91,650
+```
+NOTE: win-check reads from old `toto_predictions` table. The `toto_results` row uses
+pred_id from the legacy table, not from `toto_predictions_log`. This is a known mismatch
+to fix in a future session.
+
+**Retrain + predict for draw #4171 (model=7a5c887, 2026-04-05):**
+```
+Training draws: 1830 (#2341–#4170) | Git: 7a5c887 | Dry run: False
+Sys6 T1: [4, 15, 17, 35, 43, 49]
+Sys6 T2: [8, 13, 22, 34, 37, 49]
+Sys6 T3: [4, 22, 31, 34, 35, 49]
+Sys7 T1: [4, 15, 17, 22, 35, 43, 49]
+Sys8 T1: [4, 15, 17, 22, 34, 35, 37, 43, 49]
+Sys9 T1: [4, 12, 13, 15, 17, 22, 28, 34, 35, 37, 43, 49]
+Sys10 T1: [4, 8, 10, 12, 13, 15, 17, 22, 28, 30, 34, 35, 37, 43, 46, 49]
+Sys11 T1: [4, 8, 10, 12, 13, 15, 17, 22, 24, 28, 30, 31, 32, 33, 34, 35, 37, 40, 43, 46, 49]
+Sys12 T1: [1, 4, 6, 8, 10, 12, 13, 14, 15, 17, 18, 22, 24, 28, 30, 31, 32, 33, 34, 35, 37, 38, 40, 43, 46, 48, 49]
+Bonus T6: [4, 21, 30, 35, 37, 49]
+Additional picks: [21, 48, 31, 17, 6]
+Cost mandatory (3×Sys6 + 1×Sys7): $10
+```
 
 **NOTE on toto_draws range:** MIN draw = #4 (corrupted early dates still present in DB).
 Training window is **draws >= #2341 only** — enforced in retrain_and_predict.py.
@@ -63,28 +99,21 @@ Training window is **draws >= #2341 only** — enforced in retrain_and_predict.p
 
 ### P0 — Must fix before production automation is reliable
 
-1. **Win-check has never run** — `toto_results` has 0 rows.
-   - `check_wins.py` exists but has never been tested end-to-end
-   - Cannot verify prediction quality until this is fixed
-   - **Status: UNFIXED**
+1. **win-check reads from legacy `toto_predictions` table, not `toto_predictions_log`**
+   - check_wins.py looks up predictions from `toto_predictions` (old schema)
+   - `toto_predictions_log` (new schema, 30 rows) is NOT checked by win-check
+   - The `toto_results` row written for draw #4170 used the old pred_id
+   - Fix: update check_wins.py to read from `toto_predictions_log` instead
+   - **Status: UNFIXED — next session priority #1**
 
-2. **GitHub PAT is expired** — GITHUB_TOKEN in Base44 secrets returns 401.
-   - EC2 cannot push to GitHub (pull still works via HTTPS)
-   - Sandbox cannot push to GitHub either
-   - EC2 is currently **4 commits ahead of origin** (including c55517c AGENT_RULES.md)
-   - **Fix:** Bharath must generate a new GitHub PAT (classic, repo scope) and update
-     the GITHUB_TOKEN secret in Base44 secrets vault
-   - **Status: BLOCKED on Bharath**
-
-3. **Corrupted early draw dates** — draws #4 through ~#2340 have wrong/garbage dates
-   - Impact: toto_draws.draw_date unreliable for pre-2341 draws
+2. **Corrupted early draw dates** — draws #4 through ~#2340 have wrong/garbage dates
    - Mitigation: training already excludes draws < #2341
-   - **Status: LOW PRIORITY, not blocking anything**
+   - **Status: LOW PRIORITY**
 
 ### P1 — Known issues, lower urgency
-4. **Backtest numbers are invalid** — all cited lift/accuracy numbers (13.6% Sys7 etc.)
+3. **Backtest numbers are invalid** — all cited lift/accuracy numbers (13.6% Sys7 etc.)
    were computed on pre-2341 data (corrupted/incomplete). Not meaningful.
-5. **4D pipeline SSH key problem** — 4D automation not verified end-to-end.
+4. **4D pipeline SSH key problem** — 4D automation not verified end-to-end.
 
 ---
 
@@ -92,45 +121,29 @@ Training window is **draws >= #2341 only** — enforced in retrain_and_predict.p
 
 | # | Task | Evidence |
 |---|------|----------|
-| 1 | AGENT_RULES.md committed to repo root | EC2 commit c55517c. Push blocked (GITHUB_TOKEN expired). |
-| 2 | scrape_latest.py FIXED | Now uses static archive URL. Fetched draw #4170 correctly. latest_draw.json verified. Exit code 0. Full output pasted in session. |
-| 3 | bs4 + requests installed in venv | pip install confirmed exit code 0 |
+| 1 | AGENT_RULES.md committed to repo root | commit c55517c |
+| 2 | scrape_latest.py FIXED — static HTML URL | commit 7a5c887. Fetched draw #4170 correctly. Exit code 0. |
+| 3 | Win-check ran for draw #4170 | check_wins.py exit code 0. toto_results: 1 row. Any win: True (Sys11 Group7, Sys12 Group5). |
+| 4 | Full retrain + predict for draw #4171 | retrain_and_predict.py exit code 0. model=7a5c887. toto_predictions_log: 30 rows (+10 new). EC2 scaled t3.nano→t3.medium→t3.nano. |
+| 5 | GitHub PAT refreshed | New token set in Base44 secrets. All 5 pending commits pushed (e7e1662..7a5c887). |
+| 6 | joblib/scikit-learn/xgboost/torch installed in venv | pip install exit code 0 |
 
-**scrape_latest.py fix summary:**
-- OLD URL: `https://www.singaporepools.com.sg/en/product/sr/Pages/toto_results.aspx` (JS-rendered, fragile)
-- NEW URL: `https://www.singaporepools.com.sg/DataFileArchive/Lottery/Output/toto_result_top_draws_en.html` (static HTML, reliable)
-- Output path: `~/statlot-649/statlot/toto/latest_draw.json` ✅ (was writing to wrong path before)
-- Actual output from 2026-04-05 run:
-  ```
-  Draw number : 4170
-  Draw date   : 2026-04-02
-  Numbers     : [1, 7, 8, 23, 30, 33]
-  Additional  : 21
-  Fetched at  : 2026-04-04T13:08:26
-  ```
+## GIT COMMIT HISTORY (this session)
 
----
-
-## PREVIOUS SESSION COMPLETIONS (2026-04-04)
-
-| # | Task | Evidence |
-|---|------|----------|
-| 1 | DB gitignore confirmed at repo root | .gitignore verified, commit 09b58b1 |
-| 2 | toto_draws filled with 2,973 rows | DB verified: COUNT=2973, MIN=#4, MAX=#4170 |
-| 3 | toto_predictions_log table created + tested | 20 rows in DB (10 dry-run + 10 real). Full pipeline exit code 0 on t3.medium. |
-| 4 | SSH key fix: ssh_utils.py written and deployed | commit 519960b. Key restored from EC2_SSH_KEY env var at automation start. |
-| 5 | boto3 confirmed working for EC2 control | boto3 works; AWS CLI mangles + in secrets. |
+| Hash    | Description |
+|---------|-------------|
+| 7a5c887 | fix: scrape_latest.py uses static HTML archive URL; update AGENT_STATE.md |
+| c55517c | feat: add AGENT_RULES.md to repo root — session operating rules |
 
 ---
 
 ## NEXT STEPS (in priority order)
 
-1. **Bharath: regenerate GitHub PAT** (classic, repo scope) → update GITHUB_TOKEN in Base44 secrets
-   → then agent can `git push` from sandbox and sync EC2 (4 commits pending)
+1. **Fix check_wins.py** — update to read from `toto_predictions_log` instead of legacy `toto_predictions`
+   - Verify toto_results gets a correct row after draw #4171
+   - Test end-to-end: run check_wins.py after draw #4171 result is published (Mon 07 Apr 2026)
 
-2. **Fix win-check** — test check_wins.py against draw #4170 using toto_predictions_log rows
-   → verify toto_results gets rows written
-   → confirm exit code 0
+2. **Verify automation pipeline end-to-end** — manually trigger the Monday pipeline on a real draw day,
+   paste full output, verify DB row counts change correctly
 
-3. **End-to-end automation test** — manually trigger the Monday pipeline, paste full output,
-   verify DB changes (new prediction row, win-check row)
+3. **Fix corrupted early draw dates** (low priority — not blocking predictions)
