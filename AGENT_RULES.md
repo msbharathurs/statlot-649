@@ -1,7 +1,35 @@
 # AGENT_RULES.md
 # Statlot Operating Rules — Base44
-# Last updated: 2026-04-03
+# Last updated: 2026-04-05
 # READ THIS BEFORE TOUCHING ANYTHING. EVERY SESSION. NO EXCEPTIONS.
+
+---
+
+## GIT PUSH RULE — NON-NEGOTIABLE
+
+Every commit must be on GitHub. EC2 local commits do not exist.
+
+The done definition already requires git push. This rule makes it explicit:
+
+- `git commit` alone is NOT done
+- `git commit + git push` is done
+- If push fails, the task is NOT complete — fix the push before moving on
+- Never end a session with EC2 ahead of origin/main by any commits
+- Never say "commit is on EC2 local git" as if that is acceptable
+- EC2 can be terminated, snapshotted, or lost at any time
+- GitHub is the only permanent record
+
+If the GitHub token is expired or push credentials fail:
+1. Stop immediately and report it
+2. Fix the token (generate new PAT at github.com/settings/tokens)
+3. Push before doing anything else
+4. Never defer a push to "next session"
+
+Verify at session end:
+```bash
+cd ~/statlot-649 && git status && git log origin/main..HEAD
+```
+If that shows any commits — PUSH THEM before ending the session.
 
 ---
 
@@ -69,7 +97,7 @@ Do not silently create new files in new locations.
 
 Nothing is "done" until ALL three of these are true:
 
-1. **Code is committed and pushed to git**
+1. **Code is committed and pushed to GitHub**
 ```bash
 cd ~/statlot-649 && git add -A && git commit -m "describe what changed" && git push
 ```
@@ -135,12 +163,18 @@ Before ending any session:
    - Any new broken things discovered
    - Next steps (specific, not vague)
 
-2. **Commit and push everything**
+2. **Commit and push everything to GitHub**
 ```bash
 cd ~/statlot-649 && git add -A && git commit -m "session end: [describe state]" && git push
 ```
 
-3. **Confirm to Bharath:** "Session end — AGENT_STATE.md updated, everything pushed to git. Here is what is in progress and what is next."
+3. **Verify no local-only commits remain:**
+```bash
+git log origin/main..HEAD
+```
+If this shows anything — stop and push before ending.
+
+4. **Confirm to Bharath:** "Session end — AGENT_STATE.md updated, everything pushed to git. Commit hash: [hash]. Here is what is in progress and what is next."
 
 If the session ends without this, the next session starts blind.
 Every session that starts blind wastes Bharath's time and money.
