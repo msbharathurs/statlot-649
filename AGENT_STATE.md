@@ -243,3 +243,34 @@ Do not cite them without first re-running on clean full history.
 - Never scale beyond t3.medium without explicit instruction from Bharath
 - Always use **boto3** for EC2 control — AWS CLI mangles the + character in secrets
 - SSH key: always restore from EC2_SSH_KEY env var via restore_key.py before any SSH call
+
+---
+
+## EV BACKTEST RESULTS (2026-04-05)
+Config E (M2=0.60 M5=0.10 M12=0.30), walk-forward 895 draws:
+- Top10: ROI 65.4%, EV -$3.46/draw
+- Top20: ROI 67.7%, EV -$6.46/draw
+- Top30: ROI 92.3%, EV -$2.31/draw  <- PRODUCTION CONFIG
+- Top50: ROI 79.1%, EV -$10.44/draw
+
+DECISION: Top30 picks is the sweet spot. Beyond 30 picks is net negative marginal EV.
+Current system loses ~$2.31/draw on average (~$360/year at 156 draws).
+Break-even requires ~8% improvement in 1st prize hit rate OR model improvement.
+
+## MODEL CHANGES THIS SESSION (2026-04-05)
+- M2: now uses ALL 23 drawn numbers for num_probs_1st (was prize_1st only)
+  num_probs_1st entries: 10,000 (was ~4,400) -- sparsity problem solved
+  Tier weights: prize_1st=3x, prize_2nd/3rd=2x, starters=1.5x, consolations=1x
+- M5: recency weighting added -- last 200 draws weight 5.0x, older draws 1.0x
+  score_m5(7208)=0.225 vs score_m5(1234)=0.178 -- 26% spread (was near-flat)
+- M12: new coverage/diversity model added (statlot/4d/models/m12_coverage.py)
+  Contrarian signal: underrepresented digit families score higher
+  Top20 spans 7 leading digits -- diversity confirmed
+- retrain_and_predict.py: updated to Top30 primary output, M12 replaces M11
+  GitHub commit: 0c657a9
+
+## NEXT ARCHITECTURE WORK (when ready)
+- M2: consider position-specific Markov (digit 0 transitions separate from digit 1)
+- M5: test shorter recency windows (50, 100) to see if more recency helps
+- Consider adding a hot/cold number model tracking raw number frequency gaps
+- Run EV backtest after any model change -- that is the only metric that matters now
