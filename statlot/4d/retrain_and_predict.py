@@ -20,15 +20,36 @@ def ibox_family(n):
     return set(''.join(p) for p in permutations(n))
 
 def next_draw_day():
-    from datetime import date, timedelta
-    today = date.today()
-    # Next draw: Wed=2, Sat=5, Sun=6
-    draw_days = [2, 5, 6]
+    """
+    Return (date_str, day_abbr) for the draw to predict for.
+    Logic:
+      - 4D draw days: Wednesday=2, Saturday=5, Sunday=6
+      - If today IS a draw day AND current SGT time is before 18:30 → return today
+      - Otherwise return the next draw day (offset 1..7)
+    All times evaluated in Asia/Singapore timezone.
+    """
+    from datetime import date, timedelta, timezone
+    import pytz
+
+    sgt = pytz.timezone("Asia/Singapore")
+    now_sgt = datetime.now(sgt)
+    today = now_sgt.date()
+    draw_days = [2, 5, 6]  # Wed, Sat, Sun
+    day_names = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+
+    # Check if today is a draw day and draw hasn't closed yet (before 18:30 SGT)
+    cutoff_hour, cutoff_min = 18, 30
+    if today.weekday() in draw_days:
+        if (now_sgt.hour, now_sgt.minute) < (cutoff_hour, cutoff_min):
+            return today.strftime("%Y-%m-%d"), day_names[today.weekday()][:3]
+
+    # Otherwise find next draw day
     for offset in range(1, 8):
         d = today + timedelta(days=offset)
         if d.weekday() in draw_days:
-            days = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
-            return d.strftime("%Y-%m-%d"), days[d.weekday()][:3]
+            return d.strftime("%Y-%m-%d"), day_names[d.weekday()][:3]
+
+    # Fallback (should never hit)
     return (today + timedelta(days=3)).strftime("%Y-%m-%d"), "Wed"
 
 con = duckdb.connect(DB_PATH, read_only=True)
